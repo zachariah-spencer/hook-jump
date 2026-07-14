@@ -1,0 +1,3 @@
+module Labels
+  
+end
