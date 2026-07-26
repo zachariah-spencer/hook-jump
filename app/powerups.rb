@@ -1,4 +1,20 @@
 module Powerups
+
+  def self.build(type:, spawn_x: 0)
+    case type
+    when :wide_hook
+      wide_hook(spawn_x: spawn_x)
+    when :up_rock
+      up_rock(spawn_x: spawn_x)
+    when :gold_rush
+      gold_rush(spawn_x: spawn_x)
+    when :eagle
+      eagle(spawn_x: spawn_x)
+    else
+      raise ArgumentError, "Unknown powerup type: #{type.inspect}"
+    end
+  end
+
   def self.wide_hook(spawn_x: 0)
     {
       x: spawn_x,

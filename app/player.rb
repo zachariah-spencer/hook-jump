@@ -90,17 +90,15 @@ class Player
     @x += @dx
     @y += @dy
 
-    @hook.calc(owner: self)
-
     # calc attacking
     if state.hook_input_pressed && can_shoot_hook?
       @hook.shoot(direction: @face_direction)
       @jump_sprite_started_tick = nil
     end
 
-    if state.hook_input_released
-      @hook.cancel_shot
-    end
+    @hook.cancel_shot if state.hook_input_released
+
+    @hook.calc(owner: self)
 
     calc_offscreen_indicator
 
@@ -131,6 +129,10 @@ class Player
       return target_rock
     end
     return nil
+  end
+
+  def grapple_duration
+    GRAPPLE_DURATION
   end
 
   def calc_offscreen_indicator
@@ -168,6 +170,22 @@ class Player
     end
   end
 
+  def jump!
+    @dy += JUMP_VELOCITY
+  end
+
+  def boosted_jump!
+    @dy += BOOSTED_JUMP_VELOCITY
+  end
+
+  def knock_down!
+    @dy -= JUMP_VELOCITY / 2
+  end
+
+  def start_jump_animation
+    @jump_sprite_started_tick = Kernel.tick_count
+  end
+
   def can_shoot_hook?
     !grappling? && !@hook.shooting?
   end
@@ -180,13 +198,18 @@ class Player
     @powerups.select { |p| p.duration > 0 }
   end
 
-  def add_powerup(powerup_method_name:)
-    new_powerup = Powerups.send(powerup_method_name)
-    unless @powerups.any? { |p| p.type == new_powerup.type }
-      @powerups << new_powerup
+  def add_powerup(powerup_type:)
+
+    new_powerup = Powerups.build(type: powerup_type)
+
+    existing_powerup = @powerups.find do |powerup|
+      powerup.type == new_powerup.type
+    end
+
+    if existing_powerup
+      existing_powerup.start_tick = new_powerup.start_tick
     else
-      duplicate_powerup = @powerups.find { |p| p.type == new_powerup.type }
-      duplicate_powerup.start_tick = new_powerup.start_tick
+      @powerups << new_powerup
     end
   end
 

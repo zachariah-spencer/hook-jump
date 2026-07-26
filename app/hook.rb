@@ -60,6 +60,14 @@ class Hook
     @shot_started_tick = nil
   end
 
+  def widen!
+    @h = WIDE_HOOK_SIZE
+  end
+
+  def reset_size!
+    @h = DEFAULT_HOOK_SIZE
+  end
+
   def shooting?
     return false unless @shot_started_tick
     @shot_started_tick.elapsed_time <= MAX_DURATION

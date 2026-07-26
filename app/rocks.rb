@@ -1,4 +1,24 @@
 module Rocks
+
+  def self.build(type:, spawn_x:, fall_speed:)
+    case type
+    when :basic
+      basic(spawn_x: spawn_x, fall_speed: fall_speed)
+    when :bomb
+      bomb(spawn_x: spawn_x, fall_speed: fall_speed)
+    when :down
+      down(spawn_x: spawn_x, fall_speed: fall_speed)
+    when :up
+      up(spawn_x: spawn_x, fall_speed: fall_speed)
+    when :gold
+      gold(spawn_x: spawn_x, fall_speed: fall_speed)
+    when :shop
+      shop(spawn_x: spawn_x, fall_speed: fall_speed)
+    else
+      raise ArgumentError, "Unknown rock type: #{type.inspect}"
+    end
+  end
+
   def self.basic(spawn_x:, fall_speed:)
     {
       x: spawn_x,

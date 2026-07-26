@@ -47,8 +47,6 @@ class Game
   GOLD_ATTRACTION_RADIUS = 350
   GOLD_ATTRACTION_STRENGTH = 10.0
 
-
-  GRAPPLE_DURATION = 0.25.seconds
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
@@ -59,7 +57,7 @@ class Game
   MIN_POWERUP_SPAWN_DELAY = 20.seconds
   MAX_POWERUP_SPAWN_DELAY = 35.seconds
   POWERUP_FALL_SPEED = 4.5
-  SPECIAL_ROCK_TYPES = [:up_rock, :bomb_rock, :gold_rock]
+  SPECIAL_ROCK_TYPES = [:up, :bomb, :gold]
   POWERUP_TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
 
   def initialize(args)
@@ -169,7 +167,6 @@ class Game
         enable_input if grappled_rock
       end
       calc_powerups
-      calc_hook
       calc_rocks
       calc_gold
       calc_combo
@@ -238,9 +235,10 @@ class Game
   end
 
   def render_powerup_ui
-    return if player_finite_powerups.empty?
+    finite_powerups = @player.finite_powerups
+    return if finite_powerups.empty?
 
-    player_finite_powerups.each_with_index do |p, i|
+    finite_powerups.each_with_index do |p, i|
       time_left_ticks = remaining_powerup_time(p)
       start_y = Grid.h - 96
       spacing = 32
@@ -387,7 +385,7 @@ class Game
 
         if inputs.mouse.click && @player.gold >= b.price
           @player.gold -= b.price
-          @player.powerups << send("#{b.item_id}_powerup")
+          @player.add_powerup(powerup_type: b.item_id)
           state.shop_close_tick = Kernel.tick_count
         end
 
@@ -572,21 +570,19 @@ class Game
     @player.y = Grid.h if @player.y <= (0 - @player.h)
 
     state.gold_manager.gold.reject! do |g|
-      collected = state.player.intersect_rect?(g)
+      collected = @player.intersect_rect?(g)
 
       if collected
-        state.player.gold += 1 * state.gold_modifier
+        @player.gold += 1 * state.gold_modifier
       end
 
       collected
     end
 
     state.powerup_manager.powerups.reject! do |p|
-      collected = state.player.intersect_rect?(p)
+      collected = @player.intersect_rect?(p)
 
-      if collected
-        add_powerup(powerup_method_name: "#{p.type}_powerup")
-      end
+      @player.add_powerup(powerup_type: p.type) if collected
 
       collected
     end
@@ -615,14 +611,19 @@ class Game
     if hit_target && !previous_tick_hit_target
       disable_input
       @player.start_grapple(hit_target)
-      trigger_camera_zoom(target: 1.05, zoom_in_duration: GRAPPLE_DURATION, zoom_out_duration: 20)
+      trigger_camera_zoom(target: 1.05, zoom_in_duration: @player.grapple_duration, zoom_out_duration: 20)
     end
   end
 
   def calc_rocks
     if state.rock_manager.rock_spawned_at.elapsed_time >= state.rock_manager.next_rock_spawn_delay
       selected_rock_type = select_rock_type_to_spawn
-      state.rock_manager.rocks << send(selected_rock_type, spawn_x: state.rock_manager.next_rock_spawn_x, fall_speed: state.rock_manager.next_rock_dy)
+      new_rock = Rocks.build(
+        type: selected_rock_type,
+        spawn_x: state.rock_manager.next_rock_spawn_x,
+        fall_speed: state.rock_manager.next_rock_dy
+      )
+      state.rock_manager.rocks << new_rock
       reset_rock_spawn_variables
     end
 
@@ -685,7 +686,7 @@ class Game
   end
 
   def select_rock_type_to_spawn
-    return :up_rock if state.rock_manager.only_spawn_up_rocks
+    return :up if state.rock_manager.only_spawn_up_rocks
 
     difficulty = calc_current_difficulty_levers
     state.rock_manager.next_shop_rock_spawn_countdown -= 1
@@ -694,12 +695,12 @@ class Game
 
     if state.rock_manager.next_shop_rock_spawn_countdown <= 0
       state.rock_manager.next_shop_rock_spawn_countdown = Numeric.rand(HARD_MIN_SHOP_ROCK_SPAWN_COUNTDOWN..HARD_MAX_SHOP_ROCK_SPAWN_COUNTDOWN)
-      return :shop_rock
+      return :shop
     end
 
     if state.rock_manager.next_down_rock_spawn_countdown <= 0
       state.rock_manager.next_down_rock_spawn_countdown = Numeric.rand(difficulty.min_down_rock_spawn_countdown..difficulty.max_down_rock_spawn_countdown)
-      return :down_rock
+      return :down
     end
 
     if state.rock_manager.next_special_rock_spawn_countdown <= 0
@@ -707,7 +708,7 @@ class Game
       return SPECIAL_ROCK_TYPES.sample
     end
 
-    :basic_rock
+    :basic
   end
 
   def reset_rock_spawn_variables
@@ -721,7 +722,13 @@ class Game
   def calc_powerups
     if state.powerup_manager.powerup_spawn_tick.elapsed_time >= state.powerup_manager.next_powerup_spawn_delay
       next_powerup_type = POWERUP_TYPES.sample
-      state.powerup_manager.powerups << send("#{next_powerup_type}_powerup", spawn_x: state.powerup_manager.next_powerup_spawn_x)
+
+      new_powerup = Powerups.build(
+        type: next_powerup_type,
+        spawn_x: state.powerup_manager.next_powerup_spawn_x
+      )
+
+      state.powerup_manager.powerups << new_powerup
       state.powerup_manager.powerup_spawn_tick = Kernel.tick_count
       state.powerup_manager.next_powerup_spawn_delay = Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
       state.powerup_manager.next_powerup_spawn_x = Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X)
@@ -738,7 +745,7 @@ class Game
 
         case p.type
         when :wide_hook
-          @player.hook.h = WIDE_HOOK_SIZE
+          @player.hook.widen!
         when :up_rock
           state.rock_manager.only_spawn_up_rocks = true
         when :gold_rush
@@ -754,7 +761,7 @@ class Game
 
       case p.type
       when :wide_hook
-        @player.hook.h = DEFAULT_HOOK_SIZE
+        @player.hook.reset_size!
       when :up_rock
         state.rock_manager.only_spawn_up_rocks = false
       when :gold_rush
@@ -776,10 +783,10 @@ class Game
 
     case target_rock.type
     when :basic
-      @player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     when :bomb
-      @player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 30, duration: 120)
       state.rock_manager.rocks.each do |other_r|
         next if other_r == target_rock
@@ -789,21 +796,21 @@ class Game
         start_rock_break_animation(other_r)
       end
     when :down
-      @player.dy += -PLAYER_JUMP_VELOCITY / 2
+      @player.knock_down!
       trigger_camera_shake(strength: 50, duration: 20)
     when :up
-      @player.dy += PLAYER_BOOSTED_JUMP_VELOCITY
+      @player.boosted_jump!
       trigger_camera_shake(strength: 50, duration: 20)
     when :shop
       open_shop
-      @player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     when :gold
-      @player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
       @player.gold += 5 * state.gold_modifier
     when :default
-      @player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     end
     @player.jump_sprite_started_tick = Kernel.tick_count
@@ -835,7 +842,8 @@ class Game
     item_option_width = 256
     start_x = (Grid.w / 2) - (item_option_width) - padding
     2.times.each do |i|
-      new_item_option = send("#{POWERUP_TYPES.sample}_powerup")
+      powerup_type = POWERUP_TYPES.sample
+      new_item_option = Powerups.build(type: powerup_type)
       state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(25..100), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
     end
   end
