@@ -169,11 +169,11 @@ class Game
     return unless state.input_active
 
 
-    state.player.move_direction_x = 0
+    state.player.move_direction = 0
     state.player.move_direction_y = 0
 
-    state.player.move_direction_x -= 1 if inputs.keyboard.left
-    state.player.move_direction_x += 1 if inputs.keyboard.right
+    state.player.move_direction -= 1 if inputs.keyboard.left
+    state.player.move_direction += 1 if inputs.keyboard.right
     state.player.move_direction_y -= 1 if inputs.keyboard.down
     state.player.move_direction_y += 1 if inputs.keyboard.up && state.player.carried_by_eagle
     state.player_attack_input_pressed = inputs.keyboard.key_down.space

@@ -1,6 +1,6 @@
 require_relative "game"
-require_relative "player"
 require_relative "powerups"
+require_relative "player"
 require_relative "rocks"
 require_relative "hook"
 

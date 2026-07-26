@@ -1,22 +1,23 @@
-* EXCEPTION:
-* ERROR: :+ method missing on ~NilClass~.
+* RELOAD EXCEPTION: ~require~ order might not be valid (or require statement may be missing).
+An uninitialized constant exception was thrown while files were being loaded. Make sure that your ~require~
+and ~require_relative~ statements are ordered correctly. To debug require load order put the following at the TOP of =app/main.rb=
 
-#+begin_src ~NilClass#inspect~
-nil
-#+end_src ~NilClass#inspect~
+#+begin_src
+  # main.rb
+  # very first line
+  $gtk.debug_require!
 
-
-
-The method named
-  :+
-with args
-  [nil]
-doesn't exist on [NilClass, NilClassFalseClass].
-
-(suggestions above)
+  # rest of require statements/code
+  require ...
+#+end_src
+* EXCEPTION THROWN:
+* ERROR: Exception while requiring app/main.rb.
+* ERROR: Exception while requiring app/player.rb.
+uninitialized constant Player::Powerups
 ** Backtrace:
-*** app/game.rb:859:in calc_rocks
-*** app/game.rb:857:in calc_rocks
-*** app/game.rb:190:in calc
-*** app/game.rb:164:in tick
-*** app/main.rb:13:in tick
+*** app/player.rb:2
+*** app/player.rb:1
+*** app/main.rb:2
+** Backtrace:
+*** app/main.rb:2
+** Backtrace:
