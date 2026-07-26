@@ -1,19 +1,115 @@
 AllCops:
-  NewCops: enable
-  TargetRubyVersion: 3.2
+  DisabledByDefault: true
+  NewCops: disable
 
-Style/Documentation:
+  Include:
+    - "mygame/**/*.rb"
+
+  Exclude:
+    - "dragonruby/**/*"
+    - "docs/**/*"
+    - "samples/**/*"
+    - "tmp/**/*"
+    - "builds/**/*"
+
+# -----------------------------------------------------------------------------
+# BUG FINDING
+# -----------------------------------------------------------------------------
+
+# Enable all Lint cops. These catch real mistakes rather than style preferences.
+Lint:
+  Enabled: true
+
+# DragonRuby sometimes defines constants in DSL-like contexts.
+Lint/ConstantDefinitionInBlock:
+  Enabled: false
+
+# Especially useful for game math.
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: true
+
+# -----------------------------------------------------------------------------
+# FORMATTING
+# -----------------------------------------------------------------------------
+
+Layout/TrailingWhitespace:
+  Enabled: true
+
+Layout/SpaceAfterComma:
+  Enabled: true
+
+Layout/SpaceAroundOperators:
+  Enabled: true
+
+Layout/IndentationConsistency:
+  Enabled: true
+
+Layout/DefEndAlignment:
+  Enabled: true
+
+Layout/EndAlignment:
+  Enabled: true
+
+# -----------------------------------------------------------------------------
+# STYLE (ONLY THE HIGH-VALUE ONES)
+# -----------------------------------------------------------------------------
+
+# Always require parentheses for method parameters.
+Style/MethodDefParentheses:
+  Enabled: true
+  EnforcedStyle: require_parentheses
+
+# -----------------------------------------------------------------------------
+# EXPLICITLY DISABLE COMMON NOISE
+# -----------------------------------------------------------------------------
+
+Style/StringLiterals:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/TrailingCommaInHashLiteral:
+  Enabled: false
+
+Style/TrailingCommaInArguments:
+  Enabled: false
+
+Style/NumericPredicate:
+  Enabled: false
+
+Style/SymbolArray:
+  Enabled: false
+
+Style/MutableConstant:
+  Enabled: false
+
+Style/EmptyMethod:
+  Enabled: false
+
+Style/UnlessElse:
+  Enabled: false
+
+Style/StringLiteralsInInterpolation:
   Enabled: false
 
 Layout/LineLength:
-  Max: 120
-
-Metrics/MethodLength:
-  Max: 40
-
-Metrics/ClassLength:
   Enabled: false
 
-Metrics/BlockLength:
-  Exclude:
-    - "**/*.rake"
+Layout/EmptyLines:
+  Enabled: false
+
+Layout/EmptyLineAfterGuardClause:
+  Enabled: false
+
+Metrics/AbcSize:
+  Enabled: false
+
+Metrics/MethodLength:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+Metrics/PerceivedComplexity:
+  Enabled: false

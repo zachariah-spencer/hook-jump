@@ -93,9 +93,8 @@ end
 # Remove the x from xrepl to run the code. Add the x back to ignore to code.
 xrepl do
   i_am_true  = true
-  i_am_nil   = nil
+  nil
   i_am_false = false
-  i_am_hi    = "hi"
 
   puts "======== if statement"
   i_am_one = 1
@@ -200,14 +199,14 @@ end
 # Remove the x from xrepl to run the code. Add the x back to ignore to code.
 xrepl do
   puts "======== single parameter function"
-  def add_one_to n
+  def add_one_to(n)
     n + 5
   end
 
   puts add_one_to(3)
 
   puts "======== function with default value"
-  def function_with_default_value v = 10
+  def function_with_default_value(v = 10)
     v * 10
   end
 
@@ -215,7 +214,7 @@ xrepl do
   puts "passing nil: #{function_with_default_value}"
 
   puts "======== Or Equal (||=) operator for nil values"
-  def function_with_nil_default_with_local a = nil
+  def function_with_nil_default_with_local(a = nil)
     result   = a
     result ||= "or equal operator was exected and set a default value"
   end
@@ -288,7 +287,7 @@ xrepl do
   one_to_hundred = (1..40).to_a
   triples =
     one_to_hundred.product(one_to_hundred).map do |width, height|
-    [width, height, Math.sqrt(width ** 2 + height ** 2)]
+    [width, height, Math.sqrt((width**2) + (height**2))]
   end.find_all do |_, _, hypotenuse|
     hypotenuse.to_i == hypotenuse
   end.map do |triangle|

@@ -6,13 +6,13 @@ require_relative "hook"
 
 module Main
 
-  def start args
+  def start(args)
     $game = Game.new args
     $game.args = args
     $game.start
   end
 
-  def tick args
+  def tick(args)
     $game.args = args
     $game.tick
   end

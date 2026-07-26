@@ -13,7 +13,7 @@ module Rocks
       angle: Numeric.rand(-360..360),
       dang: Numeric.rand(-1.2..1.2),
       dy: fall_speed,
-      
+
       type: :basic,
       path: "sprites/rocks/basic_rock.png",
     }

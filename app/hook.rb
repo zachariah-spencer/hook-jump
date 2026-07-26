@@ -9,7 +9,7 @@ class Hook
   HOOK_SHOT_FRAME_COUNT = 9
   HOOK_WIDTH = 256
   HOOK_HEIGHT = 128
-  
+
   def initialize(x, y)
     @x = x
     @y = y
@@ -26,8 +26,8 @@ class Hook
     cleanup_animation
 
     return unless shooting?
-    @y = owner.y + (owner.h / 2 - @h / 2)
-    base_x = 
+    @y = owner.y + ((owner.h / 2) - (@h / 2))
+    base_x =
       if @direction > 0
         owner.x + owner.w
       else
@@ -38,7 +38,7 @@ class Hook
                                 duration: MAX_DURATION,
                                 tick_count: Kernel.tick_count,
                                 power: 1)
-    
+
     hook_offset = 0.lerp(MAX_LENGTH * @direction, ease_percentage)
     @x = base_x + hook_offset
   end
@@ -78,7 +78,7 @@ class Hook
         repeat: false
         )
 
-        recovery_frame_index + 7 if recovery_frame_index
+      recovery_frame_index + 7 if recovery_frame_index
     elsif @shot_started_tick
       Numeric.frame_index(
         start_at: @shot_started_tick,
@@ -111,7 +111,7 @@ class Hook
     if frame_index
       primitives_array << {
         x: @direction > 0 ? owner.x + owner.w : owner.x - HOOK_WIDTH,
-        y: owner.y + (owner.h - HOOK_HEIGHT) / 2,
+        y: owner.y + ((owner.h - HOOK_HEIGHT) / 2),
         w: HOOK_WIDTH,
         h: HOOK_HEIGHT,
         path: "sprites/hook/hook_shot/hook_shot#{frame_index.to_s.rjust(4, "0")}.png",

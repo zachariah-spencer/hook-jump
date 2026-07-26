@@ -16,7 +16,7 @@ class Player
 
 
   def initialize
-    @x = Grid.w / 2 - 16
+    @x = (Grid.w / 2) - 16
     @y = Grid.h - 128
     @w = 64
     @h = 64
@@ -26,7 +26,7 @@ class Player
     @gold = 0
     @powerups = []
 
-    @hook = Hook.new(@x / 2 - 4, @y / 2 - 4)
+    @hook = Hook.new((@x / 2) - 4, (@y / 2) - 4)
     @jump_sprite_started_tick = nil
     @grappling_tick = nil
     @dx = 0
@@ -71,19 +71,19 @@ class Player
       if @dy < -MAX_FALL_SPEED
         @dy = [@dy + FAST_FALL_RECOVERY, -applied_player_fall_speed].min
       else
-        @dy = [@dy - FALL_ACCELERATION, -applied_player_fall_speed].max      
+        @dy = [@dy - FALL_ACCELERATION, -applied_player_fall_speed].max
       end
     else
       if @dx < @move_direction_x * EAGLE_MOVE_SPEED
-        @dx = [@dx + MOVE_ACCELERATION * 1.5, @move_direction_x * EAGLE_MOVE_SPEED].min
+        @dx = [@dx + (MOVE_ACCELERATION * 1.5), @move_direction_x * EAGLE_MOVE_SPEED].min
       elsif @dx > @move_direction_x * EAGLE_MOVE_SPEED
-        @dx = [@dx - MOVE_DECELERATION * 1.5, @move_direction_x * EAGLE_MOVE_SPEED].max
+        @dx = [@dx - (MOVE_DECELERATION * 1.5), @move_direction_x * EAGLE_MOVE_SPEED].max
       end
 
       if @dy < @move_direction_y * EAGLE_MOVE_SPEED
-        @dy = [@dy + MOVE_ACCELERATION * 1.5, @move_direction_y * EAGLE_MOVE_SPEED].min
+        @dy = [@dy + (MOVE_ACCELERATION * 1.5), @move_direction_y * EAGLE_MOVE_SPEED].min
       elsif @dy > @move_direction_y * EAGLE_MOVE_SPEED
-        @dy = [@dy - MOVE_DECELERATION * 1.5, @move_direction_y * EAGLE_MOVE_SPEED].max
+        @dy = [@dy - (MOVE_DECELERATION * 1.5), @move_direction_y * EAGLE_MOVE_SPEED].max
       end
     end
 
@@ -136,10 +136,10 @@ class Player
   def calc_offscreen_indicator
     if @y >= Grid.h
       # x position
-      @offscreen_indicator.x = @x + @w / 2 - @offscreen_indicator.w / 2
+      @offscreen_indicator.x = @x + (@w / 2) - (@offscreen_indicator.w / 2)
 
       # angle
-      center_x = @offscreen_indicator.x + @offscreen_indicator.w / 2
+      center_x = @offscreen_indicator.x + (@offscreen_indicator.w / 2)
       progress = center_x.fdiv(1280).clamp(0, 1)
       angle = (30.0).lerp(-30.0, progress)
       @offscreen_indicator.angle = angle

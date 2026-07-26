@@ -46,7 +46,7 @@ class Game
   MAX_GOLD_SPAWN_DELAY = 1.5.seconds
   GOLD_ATTRACTION_RADIUS = 350
   GOLD_ATTRACTION_STRENGTH = 10.0
-  
+
 
   GRAPPLE_DURATION = 0.25.seconds
   COMBO_RESET_DURATION = 2.0.seconds
@@ -55,17 +55,17 @@ class Game
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
   ROCK_BREAK_FRAME_COUNT = 5
   ROCK_BREAK_FRAME_HOLD = 3
-  
+
   MIN_POWERUP_SPAWN_DELAY = 20.seconds
   MAX_POWERUP_SPAWN_DELAY = 35.seconds
   POWERUP_FALL_SPEED = 4.5
   SPECIAL_ROCK_TYPES = [:up_rock, :bomb_rock, :gold_rock]
   POWERUP_TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
 
-  def initialize args
+  def initialize(args)
   end
 
-  def start 
+  def start
     state.input_active = true
     state.run_started_tick = nil
     state.run_ended_tick = nil
@@ -183,7 +183,7 @@ class Game
   end
 
   def render
-    outputs.background_color = [0,0,0]
+    outputs.background_color = [0, 0, 0]
     render_world
     render_ui
   end
@@ -202,7 +202,7 @@ class Game
     render_combo_particles
   end
 
-  def rock_sprite_path rock
+  def rock_sprite_path(rock)
     return rock.path unless rock.break_started_tick
 
     frame_index = Numeric.frame_index(
@@ -246,9 +246,9 @@ class Game
       spacing = 32
       outputs.labels << powerup_timer_label(time_left: time_left_ticks, y: start_y - (spacing * i), display_name: p.name)
     end
-    
 
-    
+
+
   end
 
   def remaining_powerup_time(p)
@@ -277,14 +277,14 @@ class Game
     camera = state.camera
     zoom = camera.zoom || 1.0
 
-    world_center_x = rect.x + rect.w / 2
-    world_center_y = rect.y + rect.h / 2
+    world_center_x = rect.x + (rect.w / 2)
+    world_center_y = rect.y + (rect.h / 2)
 
-    screen_center_x = (world_center_x - camera.x) * zoom + camera.screen_x + camera.shake_x
-    screen_center_y = (world_center_y - camera.y) * zoom + camera.screen_y + camera.shake_y
+    screen_center_x = ((world_center_x - camera.x) * zoom) + camera.screen_x + camera.shake_x
+    screen_center_y = ((world_center_y - camera.y) * zoom) + camera.screen_y + camera.shake_y
     rect.merge(
-      x: screen_center_x - rect.w * zoom / 2,
-      y: screen_center_y - rect.h * zoom / 2,
+      x: screen_center_x - (rect.w * zoom / 2),
+      y: screen_center_y - (rect.h * zoom / 2),
       w: rect.w * zoom,
       h: rect.h * zoom,
     )
@@ -295,8 +295,8 @@ class Game
     zoom = camera.zoom || 1.0
     elapsed = active_tick_count - particle.started_active_tick
     progress = elapsed.fdiv(COMBO_PARTICLE_DURATION).clamp(0, 1)
-    screen_x = (particle.x - camera.x) * zoom + camera.screen_x + camera.shake_x
-    screen_y = (particle.y + COMBO_PARTICLE_FLOAT_DISTANCE * progress - camera.y) * zoom + camera.screen_y + camera.shake_y
+    screen_x = ((particle.x - camera.x) * zoom) + camera.screen_x + camera.shake_x
+    screen_y = ((particle.y + (COMBO_PARTICLE_FLOAT_DISTANCE * progress) - camera.y) * zoom) + camera.screen_y + camera.shake_y
 
     {
       x: screen_x,
@@ -345,9 +345,9 @@ class Game
 
   def combo_particle(number:)
     {
-      x: @player.x + @player.w / 2,
+      x: @player.x + (@player.w / 2),
       y: @player.y + @player.h + 12,
-      text: "#{number.to_s}x",
+      text: "#{number}x",
       started_active_tick: active_tick_count,
     }
   end
@@ -425,7 +425,7 @@ class Game
       b: 220,
       a: state.shop_alpha
     }
-    
+
     state.shop_items.each do |si|
       outputs.solids << {
         x: si.x,
@@ -465,26 +465,26 @@ class Game
       }
     end
 
-      outputs.solids << shop_leave_button_rect
-      outputs.labels << {
-        x: Grid.w / 2 - 28,
-        y: Grid.h / 2 - 196 - 16,
-        anchor_x: 0.5,
-        anchor_y: 0.5,
-        size_px: 24,
-        font: FONT,
-        r: 220,
-        g: 220,
-        b: 220,
-        a: state.shop_alpha,
-        text: "Exit the Shoppe"
-      }
+    outputs.solids << shop_leave_button_rect
+    outputs.labels << {
+      x: (Grid.w / 2) - 28,
+      y: (Grid.h / 2) - 196 - 16,
+      anchor_x: 0.5,
+      anchor_y: 0.5,
+      size_px: 24,
+      font: FONT,
+      r: 220,
+      g: 220,
+      b: 220,
+      a: state.shop_alpha,
+      text: "Exit the Shoppe"
+    }
   end
 
   def shop_leave_button_rect
     {
-        x: Grid.w / 2 - 128 - 28,
-        y: Grid.h / 2 - 256,
+        x: (Grid.w / 2) - 128 - 28,
+        y: (Grid.h / 2) - 256,
         w: 256,
         h: 96,
         r: state.shop_leave_button_color.r,
@@ -571,18 +571,24 @@ class Game
     @player.x = Grid.w - @player.w if @player.x >= Grid.w - @player.w
     @player.y = Grid.h if @player.y <= (0 - @player.h)
 
-    state.gold_manager.gold.each do |g|
-      if @player.intersect_rect?(g)
-        state.gold_manager.gold.delete(g)
-        @player.gold += 1 * state.gold_modifier
+    state.gold_manager.gold.reject! do |g|
+      collected = state.player.intersect_rect?(g)
+
+      if collected
+        state.player.gold += 1 * state.gold_modifier
       end
+
+      collected
     end
 
-    state.powerup_manager.powerups.each do |p|
-      if @player.intersect_rect?(p)
-        state.powerup_manager.powerups.delete(p)
+    state.powerup_manager.powerups.reject! do |p|
+      collected = state.player.intersect_rect?(p)
+
+      if collected
         add_powerup(powerup_method_name: "#{p.type}_powerup")
       end
+
+      collected
     end
 
     if @player.carried_by_eagle
@@ -605,7 +611,7 @@ class Game
 
     previous_tick_hit_target = @player.hook.hit_target
     hit_target = find_first_rock_hit(rocks_hit)
-    
+
     if hit_target && !previous_tick_hit_target
       disable_input
       @player.start_grapple(hit_target)
@@ -630,7 +636,7 @@ class Game
     end
   end
 
-  def rock_break_animation_complete? rock
+  def rock_break_animation_complete?(rock)
     return false unless rock.break_started_tick
 
     Numeric.frame_index(
@@ -648,21 +654,21 @@ class Game
     end
 
     state.gold_manager.gold.each do |g|
-      player_x = @player.x + @player.w / 2
-      player_y = @player.y + @player.h / 2
-      gold_x = g.x + g.w / 2
-      gold_y = g.y + g.h / 2
+      player_x = @player.x + (@player.w / 2)
+      player_y = @player.y + (@player.h / 2)
+      gold_x = g.x + (g.w / 2)
+      gold_y = g.y + (g.h / 2)
 
       offset_x = player_x - gold_x
       offset_y = player_y - gold_y
-      distance = Math.sqrt(offset_x**2 +offset_y**2)
+      distance = Math.sqrt((offset_x**2) + (offset_y**2))
 
       g.y -= g.dy
 
       next if distance.zero? || distance >= GOLD_ATTRACTION_RADIUS || !state.run_started_tick
 
-      proximity = 1.0 - distance / GOLD_ATTRACTION_RADIUS
-      pull = GOLD_ATTRACTION_STRENGTH * proximity**2
+      proximity = 1.0 - (distance / GOLD_ATTRACTION_RADIUS)
+      pull = GOLD_ATTRACTION_STRENGTH * (proximity**2)
 
       g.x += offset_x / distance * pull
       g.y += offset_y / distance * pull
@@ -680,7 +686,7 @@ class Game
 
   def select_rock_type_to_spawn
     return :up_rock if state.rock_manager.only_spawn_up_rocks
-    
+
     difficulty = calc_current_difficulty_levers
     state.rock_manager.next_shop_rock_spawn_countdown -= 1
     state.rock_manager.next_special_rock_spawn_countdown -= 1
@@ -700,8 +706,8 @@ class Game
       state.rock_manager.next_special_rock_spawn_countdown = Numeric.rand(difficulty.min_special_rock_spawn_countdown..difficulty.max_special_rock_spawn_countdown)
       return SPECIAL_ROCK_TYPES.sample
     end
-      
-    :basic_rock 
+
+    :basic_rock
   end
 
   def reset_rock_spawn_variables
@@ -724,9 +730,12 @@ class Game
     state.powerup_manager.powerups.each { |p| p.y -= POWERUP_FALL_SPEED }
     state.powerup_manager.powerups.reject! { |p| p.y <= 0 - p.h }
 
+    expired_powerups = []
+
     @player.powerups.each do |p|
       unless p.active
         p.active = true
+
         case p.type
         when :wide_hook
           @player.hook.h = WIDE_HOOK_SIZE
@@ -737,23 +746,28 @@ class Game
         when :eagle
           @player.carried_by_eagle = true
         end
-      else
-        if remaining_powerup_time(p) <= 0
-          case p.type
-          when :wide_hook
-            @player.hook.h = DEFAULT_HOOK_SIZE
-          when :up_rock
-            state.rock_manager.only_spawn_up_rocks = false
-          when :gold_rush
-            state.gold_modifier = 1.0
-          when :eagle
-            @player.carried_by_eagle = false
-          end
-          @player.powerups.delete(p)
-        end
+
+        next
       end
 
-      
+      next unless remaining_powerup_time(p) <= 0
+
+      case p.type
+      when :wide_hook
+        @player.hook.h = DEFAULT_HOOK_SIZE
+      when :up_rock
+        state.rock_manager.only_spawn_up_rocks = false
+      when :gold_rush
+        state.gold_modifier = 1.0
+      when :eagle
+        @player.carried_by_eagle = false
+      end
+
+      expired_powerups << p
+    end
+
+    @player.powerups.reject! do |p|
+        expired_powerups.include?(p)
     end
   end
 
@@ -763,11 +777,9 @@ class Game
     case target_rock.type
     when :basic
       @player.dy += PLAYER_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 12, duration: 30)
     when :bomb
       @player.dy += PLAYER_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 30, duration: 120)
       state.rock_manager.rocks.each do |other_r|
         next if other_r == target_rock
@@ -781,21 +793,17 @@ class Game
       trigger_camera_shake(strength: 50, duration: 20)
     when :up
       @player.dy += PLAYER_BOOSTED_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 50, duration: 20)
     when :shop
       open_shop
       @player.dy += PLAYER_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 12, duration: 30)
     when :gold
       @player.dy += PLAYER_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 12, duration: 30)
       @player.gold += 5 * state.gold_modifier
     when :default
       @player.dy += PLAYER_JUMP_VELOCITY
-      boosted_upward = true
       trigger_camera_shake(strength: 12, duration: 30)
     end
     @player.jump_sprite_started_tick = Kernel.tick_count
@@ -803,7 +811,7 @@ class Game
     start_rock_break_animation(target_rock)
   end
 
-  def start_rock_break_animation rock
+  def start_rock_break_animation(rock)
     rock.break_started_tick ||= Kernel.tick_count
   end
 
@@ -826,7 +834,7 @@ class Game
     padding = 64
     item_option_width = 256
     start_x = (Grid.w / 2) - (item_option_width) - padding
-    2.times.each_with_index do |i|
+    2.times.each do |i|
       new_item_option = send("#{POWERUP_TYPES.sample}_powerup")
       state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(25..100), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
     end
@@ -919,7 +927,7 @@ class Game
     ticks_factoring_pause_elapsed = (state.run_started_tick ? state.run_started_tick.elapsed_time : 0) - state.total_time_paused
     ticks_elapsed = ticks_factoring_pause_elapsed
     timer_value_seconds = ticks_elapsed / 60
-    
+
     {
       x: Grid.w / 2,
       y: Grid.h - 32,
@@ -991,7 +999,7 @@ class Game
 
   def combo_timer_backdrop_rect
     {
-      x: Grid.w / 2 - 80,
+      x: (Grid.w / 2) - 80,
       y: Grid.h - 78,
       w: 160,
       h: 10,
@@ -1028,5 +1036,5 @@ class Game
     }
   end
 
-  
+
 end
