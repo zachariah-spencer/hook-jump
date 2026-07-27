@@ -97,7 +97,6 @@ class Player
     end
 
     @hook.cancel_shot if state.hook_input_released
-
     @hook.calc(owner: self)
 
     calc_offscreen_indicator

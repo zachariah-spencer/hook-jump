@@ -163,8 +163,13 @@ class Game
       calc_longest_run_time if state.run_started_tick
       if state.run_started_tick
         grappled_rock = @player.tick
-        handle_rock_effect(grappled_rock) if grappled_rock
-        enable_input if grappled_rock
+
+        if @player.dead?
+          calc_end_game
+        elsif grappled_rock
+          handle_rock_effect(grappled_rock)
+          enable_input
+        end
       end
       calc_powerups
       calc_rocks
@@ -886,11 +891,12 @@ class Game
 
   def calc_end_game
     enable_input
-    @player.hook.hit_target = nil
     state.run_started_tick = nil
     state.total_time_paused = 0
     state.run_ended_tick = Kernel.tick_count
     @player = Player.new
+    state.gold_modifier = 1.0
+    state.rock_manager.only_spawn_up_rocks = false
     reset_combo
   end
 
