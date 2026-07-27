@@ -1,5 +1,6 @@
 class Player
   include Powerups
+  attr_accessor :x, :y, :w, :h, :dx, :dy, :gold, :powerups, :carried_by_eagle, :jump_sprite_started_tick, :hook
   attr_dr
 
   MAX_FALL_SPEED = 2.5

@@ -1,4 +1,5 @@
 class Hook
+  attr_accessor :x, :y, :w, :h, :direction, :hit_target
   attr_dr
 
   DEFAULT_HOOK_SIZE = 24

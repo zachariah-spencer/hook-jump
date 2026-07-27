@@ -46,30 +46,18 @@ class Game
   MAX_GOLD_SPAWN_DELAY = 1.5.seconds
   GOLD_ATTRACTION_RADIUS = 350
   GOLD_ATTRACTION_STRENGTH = 10.0
-  MAX_HOOK_DURATION = 0.4.seconds
-  MAX_HOOK_LENGTH = 256.0
-  HOOK_SHOT_FRAME_COUNT = 9
-  HOOK_SHOT_WIDTH = 256
-  HOOK_SHOT_HEIGHT = 128
-  GRAPPLE_DURATION = 0.25.seconds
-  MAX_PLAYER_FALL_SPEED = 2.5
-  PLAYER_FALL_ACCELERATION = 0.8
-  PLAYER_FAST_FALL_RECOVERY = 0.33
-  PLAYER_JUMP_VELOCITY = 22.0
-  PLAYER_BOOSTED_JUMP_VELOCITY = PLAYER_JUMP_VELOCITY * 1.5
-  PLAYER_JUMP_SPRITE_DURATION = 0.5.seconds
+
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
   ROCK_BREAK_FRAME_COUNT = 5
   ROCK_BREAK_FRAME_HOLD = 3
-  DEFAULT_HOOK_SIZE = 24
-  WIDE_HOOK_SIZE = 64
+
   MIN_POWERUP_SPAWN_DELAY = 20.seconds
   MAX_POWERUP_SPAWN_DELAY = 35.seconds
   POWERUP_FALL_SPEED = 4.5
-  SPECIAL_ROCK_TYPES = [:up_rock, :bomb_rock, :gold_rock]
+  SPECIAL_ROCK_TYPES = [:up, :bomb, :gold]
   POWERUP_TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
 
   def initialize(args)
@@ -85,7 +73,8 @@ class Game
     state.shop_open_tick = nil
     state.shop_close_tick = nil
     state.shop_alpha = 0
-    state.player = initial_player
+    @player = Player.new
+    @player.args = args
     state.gold_modifier = 1.0
     state.shop_leave_button_color = {
       r: 20,
@@ -111,7 +100,6 @@ class Game
       shake_strength: 0,
     }
 
-    state.hook = initial_hook
     difficulty = calc_current_difficulty_levers
     state.rock_manager = {
       rocks: [],
@@ -146,17 +134,6 @@ class Game
       last_grapple_active_tick: nil,
       particles: [],
     }
-
-    state.player_offscreen_indicator = {
-      x: 50,
-      y: Grid.h - 64,
-      w: 64,
-      h: 64,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
-      path: "sprites/triangle/equilateral/blue.png",
-      angle: 0,
-    }
   end
 
   def tick
@@ -168,27 +145,34 @@ class Game
   def input
     return unless state.input_active
 
+    state.move_direction_x = 0
+    state.move_direction_y = 0
 
-    state.player.move_direction = 0
-    state.player.move_direction_y = 0
-
-    state.player.move_direction -= 1 if inputs.keyboard.left
-    state.player.move_direction += 1 if inputs.keyboard.right
-    state.player.move_direction_y -= 1 if inputs.keyboard.down
-    state.player.move_direction_y += 1 if inputs.keyboard.up && state.player.carried_by_eagle
-    state.player_attack_input_pressed = inputs.keyboard.key_down.space
-    state.player_attack_input_released = inputs.keyboard.key_up.space
+    state.move_direction_x -= 1 if inputs.keyboard.left
+    state.move_direction_x += 1 if inputs.keyboard.right
+    state.move_direction_y -= 1 if inputs.keyboard.down
+    state.move_direction_y += 1 if inputs.keyboard.up && @player.carried_by_eagle
+    state.hook_input_pressed = inputs.keyboard.key_down.space
+    state.hook_input_released = inputs.keyboard.key_up.space
 
     return if state.run_started_tick
-    state.run_started_tick = Kernel.tick_count if state.player.move_direction != 0 || state.player_attack_input_pressed
+    state.run_started_tick = Kernel.tick_count if state.move_direction_x != 0 || state.move_direction_y != 0 || state.hook_input_pressed
   end
 
   def calc
     unless state.paused_tick
       calc_longest_run_time if state.run_started_tick
-      calc_player if state.run_started_tick
+      if state.run_started_tick
+        grappled_rock = @player.tick
+
+        if @player.dead?
+          calc_end_game
+        elsif grappled_rock
+          handle_rock_effect(grappled_rock)
+          enable_input
+        end
+      end
       calc_powerups
-      calc_hook
       calc_rocks
       calc_gold
       calc_combo
@@ -208,14 +192,9 @@ class Game
   end
 
   def render_world
-    outputs.sprites << camera_transform(
-      state.player.merge(
-        path: player_sprite_path,
-        flip_horizontally: state.player.face_direction < 0,
-      )
-    )
-    outputs.solids << camera_transform(state.hook) if player_attacking?
-    render_hook_shot
+    @player.primitives.each do |primitive|
+      outputs.sprites << camera_transform(primitive)
+    end
     state.rock_manager.rocks.each do |rock|
       outputs.sprites << camera_transform(
         rock.merge(path: rock_sprite_path(rock))
@@ -224,51 +203,6 @@ class Game
     state.gold_manager.gold.each { |g| outputs.sprites << camera_transform(g) }
     state.powerup_manager.powerups.each { |p| outputs.sprites << camera_transform(p) }
     render_combo_particles
-  end
-
-  def render_hook_shot
-    return unless state.player.hook_shot_started_tick
-
-    frame_index =
-      if state.player.hook_shot_recovery_tick
-        recovery_frame_index = Numeric.frame_index(
-          start_at: state.player.hook_shot_recovery_tick,
-          count: 2,
-          hold_for: 3,
-          repeat: false,
-        )
-        recovery_frame_index + 7 if recovery_frame_index
-      else
-        Numeric.frame_index(
-          start_at: state.player.hook_shot_started_tick,
-          count: HOOK_SHOT_FRAME_COUNT,
-          hold_for: 5,
-          repeat: false,
-        )
-      end
-    return unless frame_index
-
-    hook_shot = {
-      x: state.hook.direction > 0 ? state.player.x + state.player.w : state.player.x - HOOK_SHOT_WIDTH,
-      y: state.player.y + ((state.player.h - HOOK_SHOT_HEIGHT) / 2),
-      w: HOOK_SHOT_WIDTH,
-      h: HOOK_SHOT_HEIGHT,
-      path: "sprites/hook/hook_shot/hook_shot#{frame_index.to_s.rjust(4, "0")}.png",
-      flip_horizontally: state.hook.direction < 0,
-    }
-
-    outputs.sprites << camera_transform(hook_shot)
-  end
-
-  def player_sprite_path
-    return "sprites/player/grabbing_rock_player.png" if state.player.grappling_tick
-
-    if state.player.jump_sprite_started_tick &&
-       state.player.jump_sprite_started_tick.elapsed_time < PLAYER_JUMP_SPRITE_DURATION
-      return "sprites/player/jumping_player.png"
-    end
-
-    "sprites/player/idle_player.png"
   end
 
   def rock_sprite_path(rock)
@@ -285,7 +219,6 @@ class Game
   end
 
   def render_ui
-    outputs.sprites << state.player_offscreen_indicator if state.player.y >= Grid.h
     outputs.labels << start_instructions_label unless state.run_started_tick
     outputs.labels << [run_timer_label, longest_run_time_label, gold_label]
     render_combo_ui
@@ -308,9 +241,10 @@ class Game
   end
 
   def render_powerup_ui
-    return if player_finite_powerups.empty?
+    finite_powerups = @player.finite_powerups
+    return if finite_powerups.empty?
 
-    player_finite_powerups.each_with_index do |p, i|
+    finite_powerups.each_with_index do |p, i|
       time_left_ticks = remaining_powerup_time(p)
       start_y = Grid.h - 96
       spacing = 32
@@ -325,19 +259,7 @@ class Game
     p.duration - p.start_tick.elapsed_time
   end
 
-  def player_finite_powerups
-    state.player.powerups.select { |p| p.duration > 0 }
-  end
 
-  def add_powerup(powerup_method_name:)
-    new_powerup = send(powerup_method_name)
-    unless state.player.powerups.any? { |p| p.type == new_powerup.type }
-      state.player.powerups << new_powerup
-    else
-      duplicate_powerup = state.player.powerups.find { |p| p.type == new_powerup.type }
-      duplicate_powerup.start_tick = new_powerup.start_tick
-    end
-  end
 
   def enable_input
     state.input_active = true
@@ -345,7 +267,8 @@ class Game
 
   def disable_input
     state.input_active = false
-    state.player.move_direction = 0
+    state.move_direction_x = 0
+    state.move_direction_y = 0
   end
 
   def trigger_camera_shake(strength:, duration:)
@@ -426,8 +349,8 @@ class Game
 
   def combo_particle(number:)
     {
-      x: state.player.x + (state.player.w / 2),
-      y: state.player.y + state.player.h + 12,
+      x: @player.x + (@player.w / 2),
+      y: @player.y + @player.h + 12,
       text: "#{number}x",
       started_active_tick: active_tick_count,
     }
@@ -466,9 +389,9 @@ class Game
         b.g = 200
         b.b = 200
 
-        if inputs.mouse.click && state.player.gold >= b.price
-          state.player.gold -= b.price
-          state.player.powerups << send("#{b.item_id}_powerup")
+        if inputs.mouse.click && @player.gold >= b.price
+          @player.gold -= b.price
+          @player.add_powerup(powerup_type: b.item_id)
           state.shop_close_tick = Kernel.tick_count
         end
 
@@ -647,187 +570,32 @@ class Game
 
   end
 
-  def calc_player
-    unless state.player.carried_by_eagle
-      # calc velocity
-      target_dx = state.player.move_direction * state.player.max_speed
-
-
-      if state.player.dx < target_dx
-        state.player.dx = [state.player.dx + state.player.acceleration, target_dx].min
-      elsif state.player.dx > target_dx
-        state.player.dx = [state.player.dx - state.player.deceleration, target_dx].max
-      end
-
-      applied_player_fall_speed = state.player.move_direction_y == -1 ? (MAX_PLAYER_FALL_SPEED * 1.5) : MAX_PLAYER_FALL_SPEED
-      if state.player.dy < -MAX_PLAYER_FALL_SPEED
-        state.player.dy = [state.player.dy + PLAYER_FAST_FALL_RECOVERY, -applied_player_fall_speed].min
-      else
-        state.player.dy = [state.player.dy - PLAYER_FALL_ACCELERATION, -applied_player_fall_speed].max
-      end
-    else
-      eagle_speed = state.player.max_speed * 1.75
-
-      if state.player.dx < state.player.move_direction * eagle_speed
-        state.player.dx = [state.player.dx + (state.player.acceleration * 1.5), state.player.move_direction * eagle_speed].min
-      elsif state.player.dx > state.player.move_direction * eagle_speed
-        state.player.dx = [state.player.dx - (state.player.deceleration * 1.5), state.player.move_direction * eagle_speed].max
-      end
-
-      if state.player.dy < state.player.move_direction_y * eagle_speed
-        state.player.dy = [state.player.dy + (state.player.acceleration * 1.5), state.player.move_direction_y * eagle_speed].min
-      elsif state.player.dy > state.player.move_direction_y * eagle_speed
-        state.player.dy = [state.player.dy - (state.player.deceleration * 1.5), state.player.move_direction_y * eagle_speed].max
-      end
-    end
-    # calc facing direction
-    state.player.face_direction = player_direction?
-
-    # apply velocity
-    state.player.x += state.player.dx
-    state.player.y += state.player.dy
-
-    calc_end_game if state.player.y <= -state.player.h
-
-    # calc attacking
-    if state.player_attack_input_pressed && !player_attacking?
-      state.player.attacked_tick = Kernel.tick_count
-      state.player.hook_shot_started_tick = Kernel.tick_count
-      state.player.hook_shot_recovery_tick = nil
-      state.player.jump_sprite_started_tick = nil
-      state.hook.direction = state.player.face_direction
-    end
-
-    if state.player_attack_input_released && player_attacking?
-      state.player.hook_shot_recovery_tick = Kernel.tick_count
-    end
-
-    if state.player.attacked_tick && (!player_attacking? || state.player_attack_input_released)
-      state.player.attacked_tick = nil
-    end
-
-    calc_player_offscreen_indicator
-
-    # everything after this is handling when a player is mid-grapple after connecting the hook with a rock
-    return unless state.player.grappling_tick
-    grapple_to_rock
-  end
-
-  def calc_player_offscreen_indicator
-    if state.player.y >= Grid.h
-      # x position
-      state.player_offscreen_indicator.x =
-        state.player.x + (state.player.w / 2) - (state.player_offscreen_indicator.w / 2)
-
-      # angle
-      center_x = state.player_offscreen_indicator.x + (state.player_offscreen_indicator.w / 2)
-      progress = center_x.fdiv(1280).clamp(0, 1)
-      angle = (30.0).lerp(-30.0, progress)
-      state.player_offscreen_indicator.angle = angle
-
-      # scale
-      distance_above = state.player.y - Grid.h
-      progress = distance_above.fdiv(1024).clamp(0, 1)
-      size = 64.lerp(16, progress)
-      state.player_offscreen_indicator.w = size
-      state.player_offscreen_indicator.h = size
-    end
-  end
-
-  def player_direction?
-    if state.player.move_direction > 0
-      1
-    elsif state.player.move_direction < 0
-      -1
-    else
-      state.player.face_direction
-    end
-  end
-
-  def player_attacking?
-    return false if state.player.grappling_tick
-    return false unless state.player.attacked_tick
-    state.player.attacked_tick.elapsed_time <= MAX_HOOK_DURATION
-  end
-
-  def hook_hitbox_active?
-    !state.player.grappling_tick && player_attacking?
-  end
-
-  def grapple_to_rock
-    target_rock = state.hook.hit_target
-    target_rock.dy = -state.player.dy
-
-    ease_percentage = Easing.smooth_stop(start_at: state.player.grappling_tick,
-                                duration: GRAPPLE_DURATION,
-                                tick_count: Kernel.tick_count,
-                                power: 3)
-    state.player.x = state.player.grapple_start_x.lerp(target_rock.x, ease_percentage) if target_rock
-
-    if state.player.grappling_tick.elapsed_time >= GRAPPLE_DURATION
-      handle_rock_effect(target_rock)
-      reset_grapple_variables
-    end
-  end
-
-  def reset_grapple_variables
-    state.player.grappling_tick = nil
-    state.hook.hit_target = nil
-    enable_input
-  end
-
-  def calc_hook
-    state.hook.active = hook_hitbox_active?
-    return unless player_attacking?
-    center_of_player_y = state.player.y + ((state.player.h / 2) - (state.hook.h / 2))
-    state.hook.y = center_of_player_y
-
-    base_x =
-      if state.hook.direction > 0
-        state.player.x + state.player.w
-      else
-        state.player.x - state.hook.w
-      end
-
-    ease_percentage = Easing.smooth_stop(start_at: state.player.attacked_tick,
-                                duration: MAX_HOOK_DURATION,
-                                tick_count: Kernel.tick_count,
-                                power: 1)
-
-    hook_offset = 0.lerp(MAX_HOOK_LENGTH * state.hook.direction, ease_percentage)
-    state.hook.x = base_x + hook_offset
-  end
-
   def calc_collisions
-    state.player.x = 0 if state.player.x <= 0
-    state.player.x = Grid.w - state.player.w if state.player.x >= Grid.w - state.player.w
-    state.player.y = Grid.h if state.player.y <= (0 - state.player.h)
+    @player.x = 0 if @player.x <= 0
+    @player.x = Grid.w - @player.w if @player.x >= Grid.w - @player.w
+    @player.y = Grid.h if @player.y <= (0 - @player.h)
 
     state.gold_manager.gold.reject! do |g|
-      collected = state.player.intersect_rect?(g)
+      collected = Geometry.intersect_rect?(@player, g)
 
       if collected
-        state.player.gold += 1 * state.gold_modifier
+        @player.gold += 1 * state.gold_modifier
       end
 
       collected
     end
 
     state.powerup_manager.powerups.reject! do |p|
-      collected = state.player.intersect_rect?(p)
+      collected = Geometry.intersect_rect?(@player, p)
 
-      if collected
-        add_powerup(powerup_method_name: "#{p.type}_powerup")
-      end
+      @player.add_powerup(powerup_type: p.type) if collected
 
       collected
     end
 
-    state.hook.b = state.hook.active ? 255 : 0
-
-    if state.player.carried_by_eagle
+    if @player.carried_by_eagle
       rocks_hit = state.rock_manager.rocks.select do |rock|
-        !rock.break_started_tick && state.player.intersect_rect?(rock)
+        !rock.break_started_tick && Geometry.intersect_rect?(@player, rock)
       end
 
       rocks_hit.each do |rock|
@@ -836,29 +604,32 @@ class Game
     end
 
     # everything below this handles hook collisions if the hitbox for it is active
-    return unless state.hook.active
+    return unless @player.hook.active?
 
     rocks_hit = []
     state.rock_manager.rocks.each do |rock|
-      rocks_hit << rock if !rock.break_started_tick && state.hook.intersect_rect?(rock)
+      rocks_hit << rock if !rock.break_started_tick && Geometry.intersect_rect?(@player.hook, rock)
     end
 
-    previous_tick_hit_target = state.hook.hit_target
-    state.hook.hit_target = find_first_rock_hit(rocks_hit)
+    previous_tick_hit_target = @player.hook.hit_target
+    hit_target = find_first_rock_hit(rocks_hit)
 
-    if state.hook.hit_target && !previous_tick_hit_target
+    if hit_target && !previous_tick_hit_target
       disable_input
-      state.player.grappling_tick = Kernel.tick_count
-      state.player.hook_shot_recovery_tick = Kernel.tick_count
-      state.player.grapple_start_x = state.player.x
-      trigger_camera_zoom(target: 1.05, zoom_in_duration: GRAPPLE_DURATION, zoom_out_duration: 20)
+      @player.start_grapple(hit_target)
+      trigger_camera_zoom(target: 1.05, zoom_in_duration: @player.grapple_duration, zoom_out_duration: 20)
     end
   end
 
   def calc_rocks
     if state.rock_manager.rock_spawned_at.elapsed_time >= state.rock_manager.next_rock_spawn_delay
       selected_rock_type = select_rock_type_to_spawn
-      state.rock_manager.rocks << send(selected_rock_type, spawn_x: state.rock_manager.next_rock_spawn_x, fall_speed: state.rock_manager.next_rock_dy)
+      new_rock = Rocks.build(
+        type: selected_rock_type,
+        spawn_x: state.rock_manager.next_rock_spawn_x,
+        fall_speed: state.rock_manager.next_rock_dy
+      )
+      state.rock_manager.rocks << new_rock
       reset_rock_spawn_variables
     end
 
@@ -890,8 +661,8 @@ class Game
     end
 
     state.gold_manager.gold.each do |g|
-      player_x = state.player.x + (state.player.w / 2)
-      player_y = state.player.y + (state.player.h / 2)
+      player_x = @player.x + (@player.w / 2)
+      player_y = @player.y + (@player.h / 2)
       gold_x = g.x + (g.w / 2)
       gold_y = g.y + (g.h / 2)
 
@@ -921,7 +692,7 @@ class Game
   end
 
   def select_rock_type_to_spawn
-    return :up_rock if state.rock_manager.only_spawn_up_rocks
+    return :up if state.rock_manager.only_spawn_up_rocks
 
     difficulty = calc_current_difficulty_levers
     state.rock_manager.next_shop_rock_spawn_countdown -= 1
@@ -930,12 +701,12 @@ class Game
 
     if state.rock_manager.next_shop_rock_spawn_countdown <= 0
       state.rock_manager.next_shop_rock_spawn_countdown = Numeric.rand(HARD_MIN_SHOP_ROCK_SPAWN_COUNTDOWN..HARD_MAX_SHOP_ROCK_SPAWN_COUNTDOWN)
-      return :shop_rock
+      return :shop
     end
 
     if state.rock_manager.next_down_rock_spawn_countdown <= 0
       state.rock_manager.next_down_rock_spawn_countdown = Numeric.rand(difficulty.min_down_rock_spawn_countdown..difficulty.max_down_rock_spawn_countdown)
-      return :down_rock
+      return :down
     end
 
     if state.rock_manager.next_special_rock_spawn_countdown <= 0
@@ -943,7 +714,7 @@ class Game
       return SPECIAL_ROCK_TYPES.sample
     end
 
-    :basic_rock
+    :basic
   end
 
   def reset_rock_spawn_variables
@@ -957,7 +728,13 @@ class Game
   def calc_powerups
     if state.powerup_manager.powerup_spawn_tick.elapsed_time >= state.powerup_manager.next_powerup_spawn_delay
       next_powerup_type = POWERUP_TYPES.sample
-      state.powerup_manager.powerups << send("#{next_powerup_type}_powerup", spawn_x: state.powerup_manager.next_powerup_spawn_x)
+
+      new_powerup = Powerups.build(
+        type: next_powerup_type,
+        spawn_x: state.powerup_manager.next_powerup_spawn_x
+      )
+
+      state.powerup_manager.powerups << new_powerup
       state.powerup_manager.powerup_spawn_tick = Kernel.tick_count
       state.powerup_manager.next_powerup_spawn_delay = Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
       state.powerup_manager.next_powerup_spawn_x = Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X)
@@ -968,19 +745,19 @@ class Game
 
     expired_powerups = []
 
-    state.player.powerups.each do |p|
+    @player.powerups.each do |p|
       unless p.active
         p.active = true
 
         case p.type
         when :wide_hook
-          state.hook.h = WIDE_HOOK_SIZE
+          @player.hook.widen!
         when :up_rock
           state.rock_manager.only_spawn_up_rocks = true
         when :gold_rush
           state.gold_modifier = 2.0
         when :eagle
-          state.player.carried_by_eagle = true
+          @player.carried_by_eagle = true
         end
 
         next
@@ -990,22 +767,21 @@ class Game
 
       case p.type
       when :wide_hook
-        state.hook.h = DEFAULT_HOOK_SIZE
+        @player.hook.reset_size!
       when :up_rock
         state.rock_manager.only_spawn_up_rocks = false
       when :gold_rush
         state.gold_modifier = 1.0
       when :eagle
-        state.player.carried_by_eagle = false
+        @player.carried_by_eagle = false
       end
 
       expired_powerups << p
     end
 
-    state.player.powerups.reject! do |p|
+    @player.powerups.reject! do |p|
         expired_powerups.include?(p)
     end
-
   end
 
   def handle_rock_effect(target_rock)
@@ -1013,10 +789,10 @@ class Game
 
     case target_rock.type
     when :basic
-      state.player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     when :bomb
-      state.player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 30, duration: 120)
       state.rock_manager.rocks.each do |other_r|
         next if other_r == target_rock
@@ -1026,24 +802,24 @@ class Game
         start_rock_break_animation(other_r)
       end
     when :down
-      state.player.dy += -PLAYER_JUMP_VELOCITY / 2
+      @player.knock_down!
       trigger_camera_shake(strength: 50, duration: 20)
     when :up
-      state.player.dy += PLAYER_BOOSTED_JUMP_VELOCITY
+      @player.boosted_jump!
       trigger_camera_shake(strength: 50, duration: 20)
     when :shop
       open_shop
-      state.player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     when :gold
-      state.player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
-      state.player.gold += 5 * state.gold_modifier
+      @player.gold += 5 * state.gold_modifier
     when :default
-      state.player.dy += PLAYER_JUMP_VELOCITY
+      @player.jump!
       trigger_camera_shake(strength: 12, duration: 30)
     end
-    state.player.jump_sprite_started_tick = Kernel.tick_count
+    @player.start_jump_animation
     register_combo_grapple
     start_rock_break_animation(target_rock)
   end
@@ -1055,11 +831,11 @@ class Game
   def find_first_rock_hit(hits_array)
     return nil if hits_array.empty?
 
-    if state.hook.direction > 0
-      player_edge_x = state.player.x + state.player.w
+    if @player.hook.direction > 0
+      player_edge_x = @player.x + @player.w
       hits_array.min_by { |r| r.x - player_edge_x }
-    elsif state.hook.direction < 0
-      player_edge_x = state.player.x
+    elsif @player.hook.direction < 0
+      player_edge_x = @player.x
       hits_array.min_by { |r| player_edge_x - (r.x + r.w)}
     end
   end
@@ -1072,7 +848,8 @@ class Game
     item_option_width = 256
     start_x = (Grid.w / 2) - (item_option_width) - padding
     2.times.each do |i|
-      new_item_option = send("#{POWERUP_TYPES.sample}_powerup")
+      powerup_type = POWERUP_TYPES.sample
+      new_item_option = Powerups.build(type: powerup_type)
       state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(25..100), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
     end
   end
@@ -1115,12 +892,13 @@ class Game
 
   def calc_end_game
     enable_input
-    state.hook.hit_target = nil
     state.run_started_tick = nil
     state.total_time_paused = 0
     state.run_ended_tick = Kernel.tick_count
-    state.player = initial_player
-    state.hook = initial_hook
+    @player = Player.new
+    @player.args = args
+    state.gold_modifier = 1.0
+    state.rock_manager.only_spawn_up_rocks = false
     reset_combo
   end
 
@@ -1132,142 +910,6 @@ class Game
 
   def shutdown
     DR.write_file "data/save.txt", "#{state.longest_run_time}" if state.longest_run_time
-  end
-
-  def initial_hook
-    {
-      x: (state.player.x / 2) - 4,
-      y: (state.player.y / 2) - 4,
-      w: 40,
-      h: DEFAULT_HOOK_SIZE,
-      r: 255,
-      g: 0,
-      b: 0,
-      a: 0,
-      direction: 1,
-      active: false,
-      hit_target: nil
-    }
-  end
-
-  def initial_player
-    {
-      x: (Grid.w / 2) - 16,
-      y: Grid.h - 128,
-      w: 64,
-      h: 64,
-      dx: 0,
-      dy: 0,
-      face_direction: 1,
-      move_direction: 0,
-      acceleration: 0.6,
-      deceleration: 0.35,
-      max_speed: 5.0,
-      attacked_tick: nil,
-      hook_shot_started_tick: nil,
-      hook_shot_recovery_tick: nil,
-      jump_sprite_started_tick: nil,
-      grappling_tick: nil,
-      grapple_start_x: 0,
-      gold: 0,
-      powerups: [],
-      carried_by_eagle: false,
-    }
-  end
-
-  def basic_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 800,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      angle: Numeric.rand(-360..360),
-      dang: Numeric.rand(-1.2..1.2),
-      dy: fall_speed,
-
-      type: :basic,
-      path: "sprites/rocks/basic_rock.png",
-    }
-  end
-
-  def bomb_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      dy: fall_speed,
-      type: :bomb,
-      path: "sprites/rocks/bomb_rock.png",
-    }
-  end
-
-  def down_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      dy: fall_speed,
-      type: :down,
-      path: "sprites/rocks/down_rock.png",
-    }
-  end
-
-  def up_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      dy: fall_speed,
-      type: :up,
-      path: "sprites/rocks/up_rock.png",
-    }
-  end
-
-  def gold_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      dy: fall_speed,
-      type: :gold,
-      path: "sprites/rocks/gold_rock.png",
-    }
-  end
-
-  def shop_rock(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      r: 255,
-      g: 255,
-      b: 255,
-      dy: fall_speed,
-      type: :shop,
-      path: "sprites/rocks/gold_ore.png",
-    }
   end
 
   def gold(spawn_x:, fall_speed:)
@@ -1339,7 +981,7 @@ class Game
       anchor_y: 0.5,
       size_px: 32,
       font: FONT,
-      text: "Gold: #{state.player.gold.round(0)}",
+      text: "Gold: #{@player.gold.round(0)}",
       r: 95,
       g: 15,
       b: 185,
@@ -1407,78 +1049,6 @@ class Game
       g: 15,
       b: 185,
       a: 255,
-    }
-  end
-
-  def wide_hook_powerup(spawn_x: 0)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      path: "sprites/powerups/wide_hook_powerup.png",
-      r: 255,
-      g: 255,
-      b: 255,
-      name: "Wide Hook",
-      start_tick: Kernel.tick_count,
-      type: :wide_hook,
-      duration: 10.0.seconds,
-      active: false,
-    }
-  end
-
-  def up_rock_powerup(spawn_x: 0)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      path: "sprites/powerups/up_rock_powerup.png",
-      r: 255,
-      g: 255,
-      b: 255,
-      name: "Boost Rock Avalanche",
-      start_tick: Kernel.tick_count,
-      type: :up_rock,
-      duration: 10.0.seconds,
-      active: false,
-    }
-  end
-
-  def gold_rush_powerup(spawn_x: 0)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      path: "sprites/powerups/gold_rush_powerup.png",
-      r: 255,
-      g: 255,
-      b: 255,
-      name: "Gold Rush!(2x $)",
-      start_tick: Kernel.tick_count,
-      type: :gold_rush,
-      duration: 15.seconds,
-      active: false,
-    }
-  end
-
-  def eagle_powerup(spawn_x: 0)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 64,
-      h: 64,
-      path: "sprites/powerups/eagle_powerup.png",
-      r: 255,
-      g: 255,
-      b: 255,
-      name: "Eagle",
-      start_tick: Kernel.tick_count,
-      type: :eagle,
-      duration: 10.seconds,
-      active: false,
     }
   end
 

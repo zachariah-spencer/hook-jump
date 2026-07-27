@@ -1,8 +1,8 @@
-require_relative "game"
 require_relative "powerups"
+require_relative "hook"
 require_relative "player"
 require_relative "rocks"
-require_relative "hook"
+require_relative "game"
 
 module Main
 
