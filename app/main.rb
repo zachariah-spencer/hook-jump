@@ -1,7 +1,9 @@
+require_relative "world_spawn_bounds"
 require_relative "powerups"
 require_relative "hook"
 require_relative "player"
 require_relative "rocks"
+require_relative "rock_manager"
 require_relative "game"
 
 module Main

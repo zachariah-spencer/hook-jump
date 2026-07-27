@@ -1,4 +1,5 @@
 class Game
+  include WorldSpawnBounds
   attr_dr
 
   FONT = "fonts/carterone.ttf"
@@ -40,8 +41,6 @@ class Game
   HARD_MIN_ROCK_FALL_SPEED = 5.2
   HARD_MAX_ROCK_FALL_SPEED = 7.2
 
-  MIN_ROCK_SPAWN_X = 32
-  MAX_ROCK_SPAWN_X = (Grid.w - 32)
   MIN_GOLD_SPAWN_DELAY = 0.75.seconds
   MAX_GOLD_SPAWN_DELAY = 1.5.seconds
   GOLD_ATTRACTION_RADIUS = 350
@@ -51,13 +50,10 @@ class Game
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
-  ROCK_BREAK_FRAME_COUNT = 5
-  ROCK_BREAK_FRAME_HOLD = 3
 
   MIN_POWERUP_SPAWN_DELAY = 20.seconds
   MAX_POWERUP_SPAWN_DELAY = 35.seconds
   POWERUP_FALL_SPEED = 4.5
-  SPECIAL_ROCK_TYPES = [:up, :bomb, :gold]
   POWERUP_TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
 
   def initialize(args)
@@ -100,21 +96,21 @@ class Game
       shake_strength: 0,
     }
 
-    difficulty = calc_current_difficulty_levers
-    @rock_manager = RockManager.new
+    # difficulty = calc_current_difficulty_levers
+    @rock_manager = RockManager.new(difficulty: calc_current_difficulty_levers)
 
     state.powerup_manager = {
       powerups: [],
       powerup_spawn_tick: 0,
       next_powerup_spawn_delay: Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY),
-      next_powerup_spawn_x: Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X),
+      next_powerup_spawn_x: Numeric.rand(WorldSpawnBounds.random_x),
     }
 
     state.gold_manager = {
       gold: [],
       gold_spawn_tick: 0,
       next_gold_spawn_delay: Numeric.rand(MIN_GOLD_SPAWN_DELAY..MAX_GOLD_SPAWN_DELAY),
-      next_gold_spawn_x: Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X),
+      next_gold_spawn_x: Numeric.rand(WorldSpawnBounds.random_x),
       next_gold_dy: Numeric.rand(EASY_MIN_ROCK_FALL_SPEED..EASY_MAX_ROCK_FALL_SPEED),
     }
 
@@ -163,7 +159,7 @@ class Game
         end
       end
       calc_powerups
-      calc_rocks
+      @rock_manager.tick(difficulty: calc_current_difficulty_levers)
       calc_gold
       calc_combo
       calc_camera
@@ -185,28 +181,15 @@ class Game
     @player.primitives.each do |primitive|
       outputs.sprites << camera_transform(primitive)
     end
-    state.rock_manager.rocks.each do |rock|
-      outputs.sprites << camera_transform(
-        rock.merge(path: rock_sprite_path(rock))
-      )
+    @rock_manager.primitives.each do |rock|
+      outputs.sprites << camera_transform(rock)
     end
     state.gold_manager.gold.each { |g| outputs.sprites << camera_transform(g) }
     state.powerup_manager.powerups.each { |p| outputs.sprites << camera_transform(p) }
     render_combo_particles
   end
 
-  def rock_sprite_path(rock)
-    return rock.path unless rock.break_started_tick
-
-    frame_index = Numeric.frame_index(
-      start_at: rock.break_started_tick,
-      count: ROCK_BREAK_FRAME_COUNT,
-      hold_for: ROCK_BREAK_FRAME_HOLD,
-      repeat: false,
-    )
-
-    "sprites/rocks/rock_break/rock_break_#{frame_index.to_s.rjust(4, "0")}.png"
-  end
+  
 
   def render_ui
     outputs.labels << start_instructions_label unless state.run_started_tick
@@ -584,64 +567,27 @@ class Game
     end
 
     if @player.carried_by_eagle
-      rocks_hit = state.rock_manager.rocks.select do |rock|
-        !rock.break_started_tick && Geometry.intersect_rect?(@player, rock)
-      end
-
-      rocks_hit.each do |rock|
-        handle_rock_effect(rock)
-      end
+      @rock_manager.intersecting_rocks(@player).each { |rock| handle_rock_effect(rock) }
     end
 
     # everything below this handles hook collisions if the hitbox for it is active
     return unless @player.hook.active?
 
-    rocks_hit = []
-    state.rock_manager.rocks.each do |rock|
-      rocks_hit << rock if !rock.break_started_tick && Geometry.intersect_rect?(@player.hook, rock)
-    end
+    rocks_hit = @rock_manager.intersecting_rocks(@player.hook)
 
     previous_tick_hit_target = @player.hook.hit_target
-    hit_target = find_first_rock_hit(rocks_hit)
+    hit_target = find_first_rock_hit(rocks_hit, direction: @player.hook.direction, origin: @player)
 
     if hit_target && !previous_tick_hit_target
       disable_input
       @player.start_grapple(hit_target)
-      trigger_camera_zoom(target: 1.05, zoom_in_duration: @player.grapple_duration, zoom_out_duration: 20)
+
+      trigger_camera_zoom(
+        target: 1.05, 
+        zoom_in_duration: @player.grapple_duration, 
+        zoom_out_duration: 20
+        )
     end
-  end
-
-  def calc_rocks
-    if state.rock_manager.rock_spawned_at.elapsed_time >= state.rock_manager.next_rock_spawn_delay
-      selected_rock_type = select_rock_type_to_spawn
-      new_rock = Rocks.build(
-        type: selected_rock_type,
-        spawn_x: state.rock_manager.next_rock_spawn_x,
-        fall_speed: state.rock_manager.next_rock_dy
-      )
-      state.rock_manager.rocks << new_rock
-      reset_rock_spawn_variables
-    end
-
-    state.rock_manager.rocks.each do |r|
-      r.y -= r.dy unless r.break_started_tick
-      r.angle += r.dang if r.type == :basic && !r.break_started_tick
-    end
-
-    state.rock_manager.rocks.reject! do |rock|
-      rock.y < -32 || rock_break_animation_complete?(rock)
-    end
-  end
-
-  def rock_break_animation_complete?(rock)
-    return false unless rock.break_started_tick
-
-    Numeric.frame_index(
-      start_at: rock.break_started_tick,
-      count: ROCK_BREAK_FRAME_COUNT,
-      hold_for: ROCK_BREAK_FRAME_HOLD,
-      repeat: false,
-    ).nil?
   end
 
   def calc_gold
@@ -677,42 +623,8 @@ class Game
   def reset_gold_spawn_variables
     state.gold_manager.gold_spawn_tick = Kernel.tick_count
     state.gold_manager.next_gold_spawn_delay = Numeric.rand(MIN_GOLD_SPAWN_DELAY..MAX_GOLD_SPAWN_DELAY)
-    state.gold_manager.next_gold_spawn_x = Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X)
+    state.gold_manager.next_gold_spawn_x = Numeric.rand(WorldSpawnBounds.random_x)
     state.gold_manager.next_gold_dy = Numeric.rand(EASY_MIN_ROCK_FALL_SPEED..EASY_MAX_ROCK_FALL_SPEED)
-  end
-
-  def select_rock_type_to_spawn
-    return :up if state.rock_manager.only_spawn_up_rocks
-
-    difficulty = calc_current_difficulty_levers
-    state.rock_manager.next_shop_rock_spawn_countdown -= 1
-    state.rock_manager.next_special_rock_spawn_countdown -= 1
-    state.rock_manager.next_down_rock_spawn_countdown -= 1
-
-    if state.rock_manager.next_shop_rock_spawn_countdown <= 0
-      state.rock_manager.next_shop_rock_spawn_countdown = Numeric.rand(HARD_MIN_SHOP_ROCK_SPAWN_COUNTDOWN..HARD_MAX_SHOP_ROCK_SPAWN_COUNTDOWN)
-      return :shop
-    end
-
-    if state.rock_manager.next_down_rock_spawn_countdown <= 0
-      state.rock_manager.next_down_rock_spawn_countdown = Numeric.rand(difficulty.min_down_rock_spawn_countdown..difficulty.max_down_rock_spawn_countdown)
-      return :down
-    end
-
-    if state.rock_manager.next_special_rock_spawn_countdown <= 0
-      state.rock_manager.next_special_rock_spawn_countdown = Numeric.rand(difficulty.min_special_rock_spawn_countdown..difficulty.max_special_rock_spawn_countdown)
-      return SPECIAL_ROCK_TYPES.sample
-    end
-
-    :basic
-  end
-
-  def reset_rock_spawn_variables
-    difficulty = calc_current_difficulty_levers
-    state.rock_manager.rock_spawned_at = Kernel.tick_count
-    state.rock_manager.next_rock_spawn_delay = Numeric.rand(difficulty.min_rock_spawn_delay..difficulty.max_rock_spawn_delay)
-    state.rock_manager.next_rock_spawn_x = Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X)
-    state.rock_manager.next_rock_dy = Numeric.rand(difficulty.min_rock_fall_speed..difficulty.max_rock_fall_speed)
   end
 
   def calc_powerups
@@ -727,7 +639,7 @@ class Game
       state.powerup_manager.powerups << new_powerup
       state.powerup_manager.powerup_spawn_tick = Kernel.tick_count
       state.powerup_manager.next_powerup_spawn_delay = Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
-      state.powerup_manager.next_powerup_spawn_x = Numeric.rand(MIN_ROCK_SPAWN_X..MAX_ROCK_SPAWN_X)
+      state.powerup_manager.next_powerup_spawn_x = Numeric.rand(WorldSpawnBounds.random_x)
     end
 
     state.powerup_manager.powerups.each { |p| p.y -= POWERUP_FALL_SPEED }
@@ -743,7 +655,7 @@ class Game
         when :wide_hook
           @player.hook.widen!
         when :up_rock
-          state.rock_manager.only_spawn_up_rocks = true
+          @rock_manager.only_spawn_up_rocks!
         when :gold_rush
           state.gold_modifier = 2.0
         when :eagle
@@ -759,7 +671,7 @@ class Game
       when :wide_hook
         @player.hook.reset_size!
       when :up_rock
-        state.rock_manager.only_spawn_up_rocks = false
+        @rock_manager.restore_normal_spawning!
       when :gold_rush
         state.gold_modifier = 1.0
       when :eagle
@@ -784,13 +696,13 @@ class Game
     when :bomb
       @player.jump!
       trigger_camera_shake(strength: 30, duration: 120)
-      state.rock_manager.rocks.each do |other_r|
-        next if other_r == target_rock
-        next if other_r.break_started_tick
-        next if Geometry.distance(target_rock, other_r) > BOMB_ROCK_EXPLOSION_RADIUS
+      
+      nearby_rocks = @rock_manager.within_radius(
+        target_rock: target_rock, 
+        radius: BOMB_ROCK_EXPLOSION_RADIUS
+      )
 
-        start_rock_break_animation(other_r)
-      end
+      nearby_rocks.each { |rock| @rock_manager.break(rock) }
     when :down
       @player.knock_down!
       trigger_camera_shake(strength: 50, duration: 20)
@@ -811,22 +723,18 @@ class Game
     end
     @player.start_jump_animation
     register_combo_grapple
-    start_rock_break_animation(target_rock)
+    @rock_manager.break(target_rock)
   end
 
-  def start_rock_break_animation(rock)
-    rock.break_started_tick ||= Kernel.tick_count
-  end
+  def find_first_rock_hit(rocks, direction:, origin:)
+    return nil if rocks.empty?
 
-  def find_first_rock_hit(hits_array)
-    return nil if hits_array.empty?
-
-    if @player.hook.direction > 0
-      player_edge_x = @player.x + @player.w
-      hits_array.min_by { |r| r.x - player_edge_x }
-    elsif @player.hook.direction < 0
-      player_edge_x = @player.x
-      hits_array.min_by { |r| player_edge_x - (r.x + r.w)}
+    if direction > 0
+      origin_edge_x = origin.x + origin.w
+      rocks.min_by { |rock| rock.x - origin_edge_x }
+    elsif direction < 0
+      origin_edge_x = origin.x
+      rocks.min_by { |rock| origin_edge_x - (rock.x + rock.w)}
     end
   end
 
@@ -888,7 +796,7 @@ class Game
     @player = Player.new
     @player.args = args
     state.gold_modifier = 1.0
-    state.rock_manager.only_spawn_up_rocks = false
+    @rock_manager.restore_normal_spawning!
     reset_combo
   end
 

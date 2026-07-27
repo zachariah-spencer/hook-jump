@@ -1,20 +1,20 @@
 * EXCEPTION:
-* ERROR: :x method missing on ~Module~.
+* ERROR: :rocks method missing on ~NilClass~.
 
-#+begin_src ~Module#inspect~
-Powerups
-#+end_src ~Module#inspect~
+#+begin_src ~NilClass#inspect~
+nil
+#+end_src ~NilClass#inspect~
 
 
 
 The method named
-  :x
-doesn't exist on [Module, Powerups].
+  :rocks
+doesn't exist on [NilClass, NilClassFalseClass].
 
 (suggestions above)
 ** Backtrace:
-*** app/game.rb:589:in calc_collisions
-*** app/game.rb:588:in calc_collisions
-*** app/game.rb:180:in calc
-*** app/game.rb:141:in tick
-*** app/main.rb:17:in tick
+*** app/rock_manager.rb:138:in primitives
+*** app/game.rb:184:in render_world
+*** app/game.rb:176:in render
+*** app/game.rb:128:in tick
+*** app/main.rb:19:in tick
