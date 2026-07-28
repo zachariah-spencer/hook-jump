@@ -41,11 +41,6 @@ class Game
   HARD_MIN_ROCK_FALL_SPEED = 5.2
   HARD_MAX_ROCK_FALL_SPEED = 7.2
 
-  MIN_GOLD_SPAWN_DELAY = 0.75.seconds
-  MAX_GOLD_SPAWN_DELAY = 1.5.seconds
-  GOLD_ATTRACTION_RADIUS = 350
-  GOLD_ATTRACTION_STRENGTH = 10.0
-
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
@@ -97,22 +92,24 @@ class Game
     }
 
     # difficulty = calc_current_difficulty_levers
-    @rock_manager = RockManager.new(difficulty: calc_current_difficulty_levers)
+    @rock_manager = RockManager.new(difficulty: calc_current_difficulty_levers, spawn_x: -> { WorldSpawnBounds.random_x })
+
+    @powerup_spawn_scheduler = SpawnScheduler.new(
+      delay: lambda {
+        Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
+      }
+    )
 
     state.powerup_manager = {
       powerups: [],
-      powerup_spawn_tick: 0,
-      next_powerup_spawn_delay: Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY),
-      next_powerup_spawn_x: Numeric.rand(WorldSpawnBounds.random_x),
+      next_powerup_spawn_x: WorldSpawnBounds.random_x,
     }
 
-    state.gold_manager = {
-      gold: [],
-      gold_spawn_tick: 0,
-      next_gold_spawn_delay: Numeric.rand(MIN_GOLD_SPAWN_DELAY..MAX_GOLD_SPAWN_DELAY),
-      next_gold_spawn_x: Numeric.rand(WorldSpawnBounds.random_x),
-      next_gold_dy: Numeric.rand(EASY_MIN_ROCK_FALL_SPEED..EASY_MAX_ROCK_FALL_SPEED),
-    }
+    @gold_manager = GoldManager.new(
+      spawn_x: -> { WorldSpawnBounds.random_x },
+      spawn_y: -> { Grid.h },
+      expired: -> (gold) { gold.y < -16 }
+    )
 
     state.shop_items = []
     state.combo_manager = {
@@ -160,7 +157,10 @@ class Game
       end
       calc_powerups
       @rock_manager.tick(difficulty: calc_current_difficulty_levers)
-      calc_gold
+      @gold_manager.tick(
+        attraction_target: @player,
+        attraction_active: !!state.run_started_tick
+      )
       calc_combo
       calc_camera
       calc_collisions if state.run_started_tick
@@ -184,12 +184,14 @@ class Game
     @rock_manager.primitives.each do |rock|
       outputs.sprites << camera_transform(rock)
     end
-    state.gold_manager.gold.each { |g| outputs.sprites << camera_transform(g) }
+
+    @gold_manager.primitives.each do |primitive|
+      outputs.sprites << camera_transform(primitive)
+    end
+
     state.powerup_manager.powerups.each { |p| outputs.sprites << camera_transform(p) }
     render_combo_particles
   end
-
-  
 
   def render_ui
     outputs.labels << start_instructions_label unless state.run_started_tick
@@ -548,15 +550,8 @@ class Game
     @player.x = Grid.w - @player.w if @player.x >= Grid.w - @player.w
     @player.y = Grid.h if @player.y <= (0 - @player.h)
 
-    state.gold_manager.gold.reject! do |g|
-      collected = Geometry.intersect_rect?(@player, g)
-
-      if collected
-        @player.gold += 1 * state.gold_modifier
-      end
-
-      collected
-    end
+    collected_gold = @gold_manager.collect_intersecting(@player)
+    @player.gold += collected_gold.count * state.gold_modifier
 
     state.powerup_manager.powerups.reject! do |p|
       collected = Geometry.intersect_rect?(@player, p)
@@ -583,52 +578,15 @@ class Game
       @player.start_grapple(hit_target)
 
       trigger_camera_zoom(
-        target: 1.05, 
-        zoom_in_duration: @player.grapple_duration, 
+        target: 1.05,
+        zoom_in_duration: @player.grapple_duration,
         zoom_out_duration: 20
         )
     end
   end
 
-  def calc_gold
-    if state.gold_manager.gold_spawn_tick.elapsed_time >= state.gold_manager.next_gold_spawn_delay
-      state.gold_manager.gold << gold(spawn_x: state.gold_manager.next_gold_spawn_x, fall_speed: state.gold_manager.next_gold_dy)
-      reset_gold_spawn_variables
-    end
-
-    state.gold_manager.gold.each do |g|
-      player_x = @player.x + (@player.w / 2)
-      player_y = @player.y + (@player.h / 2)
-      gold_x = g.x + (g.w / 2)
-      gold_y = g.y + (g.h / 2)
-
-      offset_x = player_x - gold_x
-      offset_y = player_y - gold_y
-      distance = Math.sqrt((offset_x**2) + (offset_y**2))
-
-      g.y -= g.dy
-
-      next if distance.zero? || distance >= GOLD_ATTRACTION_RADIUS || !state.run_started_tick
-
-      proximity = 1.0 - (distance / GOLD_ATTRACTION_RADIUS)
-      pull = GOLD_ATTRACTION_STRENGTH * (proximity**2)
-
-      g.x += offset_x / distance * pull
-      g.y += offset_y / distance * pull
-    end
-
-    state.gold_manager.gold.reject! { |g| g.y < -16 }
-  end
-
-  def reset_gold_spawn_variables
-    state.gold_manager.gold_spawn_tick = Kernel.tick_count
-    state.gold_manager.next_gold_spawn_delay = Numeric.rand(MIN_GOLD_SPAWN_DELAY..MAX_GOLD_SPAWN_DELAY)
-    state.gold_manager.next_gold_spawn_x = Numeric.rand(WorldSpawnBounds.random_x)
-    state.gold_manager.next_gold_dy = Numeric.rand(EASY_MIN_ROCK_FALL_SPEED..EASY_MAX_ROCK_FALL_SPEED)
-  end
-
   def calc_powerups
-    if state.powerup_manager.powerup_spawn_tick.elapsed_time >= state.powerup_manager.next_powerup_spawn_delay
+    if @powerup_spawn_scheduler.ready?
       next_powerup_type = POWERUP_TYPES.sample
 
       new_powerup = Powerups.build(
@@ -637,9 +595,8 @@ class Game
       )
 
       state.powerup_manager.powerups << new_powerup
-      state.powerup_manager.powerup_spawn_tick = Kernel.tick_count
-      state.powerup_manager.next_powerup_spawn_delay = Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
-      state.powerup_manager.next_powerup_spawn_x = Numeric.rand(WorldSpawnBounds.random_x)
+      @powerup_spawn_scheduler.reset!
+      state.powerup_manager.next_powerup_spawn_x = WorldSpawnBounds.random_x
     end
 
     state.powerup_manager.powerups.each { |p| p.y -= POWERUP_FALL_SPEED }
@@ -696,9 +653,9 @@ class Game
     when :bomb
       @player.jump!
       trigger_camera_shake(strength: 30, duration: 120)
-      
+
       nearby_rocks = @rock_manager.within_radius(
-        target_rock: target_rock, 
+        target_rock: target_rock,
         radius: BOMB_ROCK_EXPLOSION_RADIUS
       )
 
@@ -808,18 +765,6 @@ class Game
 
   def shutdown
     DR.write_file "data/save.txt", "#{state.longest_run_time}" if state.longest_run_time
-  end
-
-  def gold(spawn_x:, fall_speed:)
-    {
-      x: spawn_x,
-      y: 720,
-      w: 16,
-      h: 16,
-      dy: fall_speed * 1.5,
-      type: :shop,
-      path: "sprites/rocks/gold_ore.png",
-    }
   end
 
   def start_instructions_label
@@ -949,6 +894,5 @@ class Game
       a: 255,
     }
   end
-
 
 end

@@ -1,4 +1,7 @@
 require_relative "world_spawn_bounds"
+require_relative "spawn_scheduler"
+require_relative "gold"
+require_relative "gold_manager"
 require_relative "powerups"
 require_relative "hook"
 require_relative "player"
