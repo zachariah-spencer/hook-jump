@@ -5,7 +5,7 @@ module WorldSpawnBounds
     HORIZONTAL_PADDING
   end
 
-  def self.max_x 
+  def self.max_x
     Grid.w - HORIZONTAL_PADDING
   end
 

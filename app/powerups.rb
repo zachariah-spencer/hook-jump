@@ -1,24 +1,26 @@
 module Powerups
 
-  def self.build(type:, spawn_x: 0)
+  TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
+
+  def self.build(type:, spawn_x: 0, spawn_y: 0)
     case type
     when :wide_hook
-      wide_hook(spawn_x: spawn_x)
+      wide_hook(spawn_x: spawn_x, spawn_y: spawn_y)
     when :up_rock
-      up_rock(spawn_x: spawn_x)
+      up_rock(spawn_x: spawn_x, spawn_y: spawn_y)
     when :gold_rush
-      gold_rush(spawn_x: spawn_x)
+      gold_rush(spawn_x: spawn_x, spawn_y: spawn_y)
     when :eagle
-      eagle(spawn_x: spawn_x)
+      eagle(spawn_x: spawn_x, spawn_y: spawn_y)
     else
       raise ArgumentError, "Unknown powerup type: #{type.inspect}"
     end
   end
 
-  def self.wide_hook(spawn_x: 0)
+  def self.wide_hook(spawn_x:, spawn_y:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       path: "sprites/powerups/wide_hook_powerup.png",
@@ -33,10 +35,10 @@ module Powerups
     }
   end
 
-  def self.up_rock(spawn_x: 0)
+  def self.up_rock(spawn_x:, spawn_y:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       path: "sprites/powerups/up_rock_powerup.png",
@@ -51,10 +53,10 @@ module Powerups
     }
   end
 
-  def self.gold_rush(spawn_x: 0)
+  def self.gold_rush(spawn_x:, spawn_y:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       path: "sprites/powerups/gold_rush_powerup.png",
@@ -69,10 +71,10 @@ module Powerups
     }
   end
 
-  def self.eagle(spawn_x: 0)
+  def self.eagle(spawn_x:, spawn_y:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       path: "sprites/powerups/eagle_powerup.png",

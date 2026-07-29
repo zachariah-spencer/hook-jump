@@ -46,11 +46,6 @@ class Game
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
 
-  MIN_POWERUP_SPAWN_DELAY = 20.seconds
-  MAX_POWERUP_SPAWN_DELAY = 35.seconds
-  POWERUP_FALL_SPEED = 4.5
-  POWERUP_TYPES = [:up_rock, :wide_hook, :gold_rush, :eagle]
-
   def initialize(args)
   end
 
@@ -73,37 +68,21 @@ class Game
       b: 20,
     }
 
-    state.camera = {
+    @camera = Camera.new(
       x: 640.0,
       y: 360.0,
       screen_x: 640,
       screen_y: 360,
-      zoom: 1.0,
-      zoom_start: 1.0,
-      zoom_target: 1.0,
-      zoom_started_tick: nil,
-      zoom_in_duration: 0,
-      zoom_out_duration: 0,
-      shake_x: 0.0,
-      shake_y: 0.0,
-      shake_time: 0.0,
-      shake_duration: 1,
-      shake_strength: 0,
-    }
+    )
 
     # difficulty = calc_current_difficulty_levers
     @rock_manager = RockManager.new(difficulty: calc_current_difficulty_levers, spawn_x: -> { WorldSpawnBounds.random_x })
 
-    @powerup_spawn_scheduler = SpawnScheduler.new(
-      delay: lambda {
-        Numeric.rand(MIN_POWERUP_SPAWN_DELAY..MAX_POWERUP_SPAWN_DELAY)
-      }
+    @powerup_manager = PowerupManager.new(
+      spawn_x: -> { WorldSpawnBounds.random_x },
+      spawn_y: -> { Grid.h },
+      expired: -> (powerup) { powerup.y <= -powerup.h }
     )
-
-    state.powerup_manager = {
-      powerups: [],
-      next_powerup_spawn_x: WorldSpawnBounds.random_x,
-    }
 
     @gold_manager = GoldManager.new(
       spawn_x: -> { WorldSpawnBounds.random_x },
@@ -155,14 +134,15 @@ class Game
           enable_input
         end
       end
-      calc_powerups
+      @powerup_manager.tick
       @rock_manager.tick(difficulty: calc_current_difficulty_levers)
       @gold_manager.tick(
         attraction_target: @player,
         attraction_active: !!state.run_started_tick
       )
+      calc_active_powerup_effects
       calc_combo
-      calc_camera
+      @camera.tick
       calc_collisions if state.run_started_tick
     else
       outputs.watch "PAUSED"
@@ -179,17 +159,20 @@ class Game
 
   def render_world
     @player.primitives.each do |primitive|
-      outputs.sprites << camera_transform(primitive)
+      outputs.sprites << @camera.transform_rect(primitive)
     end
-    @rock_manager.primitives.each do |rock|
-      outputs.sprites << camera_transform(rock)
+    @rock_manager.primitives.each do |primitive|
+      outputs.sprites << @camera.transform_rect(primitive)
     end
 
     @gold_manager.primitives.each do |primitive|
-      outputs.sprites << camera_transform(primitive)
+      outputs.sprites << @camera.transform_rect(primitive)
     end
 
-    state.powerup_manager.powerups.each { |p| outputs.sprites << camera_transform(p) }
+    @powerup_manager.primitives.each do |primitive|
+      outputs.sprites << @camera.transform_rect(primitive)
+    end
+
     render_combo_particles
   end
 
@@ -246,40 +229,17 @@ class Game
     state.move_direction_y = 0
   end
 
-  def trigger_camera_shake(strength:, duration:)
-    state.camera.shake_strength = strength
-    state.camera.shake_duration = duration
-    state.camera.shake_time = duration
-  end
-
-  def camera_transform(rect)
-    camera = state.camera
-    zoom = camera.zoom || 1.0
-
-    world_center_x = rect.x + (rect.w / 2)
-    world_center_y = rect.y + (rect.h / 2)
-
-    screen_center_x = ((world_center_x - camera.x) * zoom) + camera.screen_x + camera.shake_x
-    screen_center_y = ((world_center_y - camera.y) * zoom) + camera.screen_y + camera.shake_y
-    rect.merge(
-      x: screen_center_x - (rect.w * zoom / 2),
-      y: screen_center_y - (rect.h * zoom / 2),
-      w: rect.w * zoom,
-      h: rect.h * zoom,
-    )
-  end
-
   def camera_transform_combo_particle(particle)
-    camera = state.camera
-    zoom = camera.zoom || 1.0
     elapsed = active_tick_count - particle.started_active_tick
     progress = elapsed.fdiv(COMBO_PARTICLE_DURATION).clamp(0, 1)
-    screen_x = ((particle.x - camera.x) * zoom) + camera.screen_x + camera.shake_x
-    screen_y = ((particle.y + (COMBO_PARTICLE_FLOAT_DISTANCE * progress) - camera.y) * zoom) + camera.screen_y + camera.shake_y
+    screen_position = @camera.world_to_screen(
+      x: particle.x,
+      y: particle.y + COMBO_PARTICLE_FLOAT_DISTANCE
+    )
 
     {
-      x: screen_x,
-      y: screen_y,
+      x: screen_position.x,
+      y: screen_position.y,
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 64,
@@ -495,56 +455,6 @@ class Game
     state.longest_run_time = elapsed_seconds.round(1)
   end
 
-  def calc_camera
-    calc_camera_shake
-    calc_camera_zoom
-  end
-
-  def calc_camera_shake
-    if state.camera.shake_time > 0.0
-      current_strength = state.camera.shake_strength * state.camera.shake_time / state.camera.shake_duration
-      angle = Numeric.rand * Math::PI * 2
-      distance = Numeric.rand * current_strength
-
-      state.camera.shake_x = Math.sin(angle) * distance
-      state.camera.shake_y = Math.cos(angle) * distance
-
-      state.camera.shake_time -= 1.0
-    else
-      state.camera.shake_x = 0
-      state.camera.shake_y = 0
-    end
-  end
-
-  def calc_camera_zoom
-    return unless state.camera.zoom_started_tick
-    elapsed = state.camera.zoom_started_tick.elapsed_time
-
-    zoom_in_end_tick = state.camera.zoom_in_duration
-    zoom_out_end_tick = zoom_in_end_tick + state.camera.zoom_out_duration
-
-    if elapsed < zoom_in_end_tick
-      progress = elapsed.fdiv(state.camera.zoom_in_duration)
-      state.camera.zoom = state.camera.zoom_start.lerp(state.camera.zoom_target, progress)
-    elsif elapsed < zoom_out_end_tick
-      zoom_out_elapsed = elapsed - zoom_in_end_tick
-      progress = zoom_out_elapsed.fdiv(state.camera.zoom_out_duration)
-      state.camera.zoom = state.camera.zoom_target.lerp(1.0, progress)
-    else
-      state.camera.zoom = 1.0
-      state.camera.zoom_started_tick = nil
-    end
-  end
-
-  def trigger_camera_zoom(target:, zoom_in_duration:, zoom_out_duration:)
-    state.camera.zoom_start = state.camera.zoom
-    state.camera.zoom_target = target
-    state.camera.zoom_started_tick = Kernel.tick_count
-    state.camera.zoom_in_duration = zoom_in_duration
-    state.camera.zoom_out_duration = zoom_out_duration
-
-  end
-
   def calc_collisions
     @player.x = 0 if @player.x <= 0
     @player.x = Grid.w - @player.w if @player.x >= Grid.w - @player.w
@@ -553,12 +463,9 @@ class Game
     collected_gold = @gold_manager.collect_intersecting(@player)
     @player.gold += collected_gold.count * state.gold_modifier
 
-    state.powerup_manager.powerups.reject! do |p|
-      collected = Geometry.intersect_rect?(@player, p)
-
-      @player.add_powerup(powerup_type: p.type) if collected
-
-      collected
+    collected_powerups = @powerup_manager.collect_intersecting(@player)
+    collected_powerups.each do |powerup|
+      @player.add_powerup(powerup_type: powerup.type)
     end
 
     if @player.carried_by_eagle
@@ -577,7 +484,7 @@ class Game
       disable_input
       @player.start_grapple(hit_target)
 
-      trigger_camera_zoom(
+      @camera.zoom_to(
         target: 1.05,
         zoom_in_duration: @player.grapple_duration,
         zoom_out_duration: 20
@@ -585,23 +492,7 @@ class Game
     end
   end
 
-  def calc_powerups
-    if @powerup_spawn_scheduler.ready?
-      next_powerup_type = POWERUP_TYPES.sample
-
-      new_powerup = Powerups.build(
-        type: next_powerup_type,
-        spawn_x: state.powerup_manager.next_powerup_spawn_x
-      )
-
-      state.powerup_manager.powerups << new_powerup
-      @powerup_spawn_scheduler.reset!
-      state.powerup_manager.next_powerup_spawn_x = WorldSpawnBounds.random_x
-    end
-
-    state.powerup_manager.powerups.each { |p| p.y -= POWERUP_FALL_SPEED }
-    state.powerup_manager.powerups.reject! { |p| p.y <= 0 - p.h }
-
+  def calc_active_powerup_effects
     expired_powerups = []
 
     @player.powerups.each do |p|
@@ -638,8 +529,8 @@ class Game
       expired_powerups << p
     end
 
-    @player.powerups.reject! do |p|
-        expired_powerups.include?(p)
+    @player.powerups.reject! do |powerup|
+      expired_powerups.include?(powerup)
     end
   end
 
@@ -649,10 +540,10 @@ class Game
     case target_rock.type
     when :basic
       @player.jump!
-      trigger_camera_shake(strength: 12, duration: 30)
+      @camera.shake(strength: 12, duration: 30)
     when :bomb
       @player.jump!
-      trigger_camera_shake(strength: 30, duration: 120)
+      @camera.shake(strength: 30, duration: 120)
 
       nearby_rocks = @rock_manager.within_radius(
         target_rock: target_rock,
@@ -662,21 +553,21 @@ class Game
       nearby_rocks.each { |rock| @rock_manager.break(rock) }
     when :down
       @player.knock_down!
-      trigger_camera_shake(strength: 50, duration: 20)
+      @camera.shake(strength: 50, duration: 20)
     when :up
       @player.boosted_jump!
-      trigger_camera_shake(strength: 50, duration: 20)
+      @camera.shake(strength: 50, duration: 20)
     when :shop
       open_shop
       @player.jump!
-      trigger_camera_shake(strength: 12, duration: 30)
+      @camera.shake(strength: 12, duration: 30)
     when :gold
       @player.jump!
-      trigger_camera_shake(strength: 12, duration: 30)
+      @camera.shake(strength: 12, duration: 30)
       @player.gold += 5 * state.gold_modifier
     when :default
       @player.jump!
-      trigger_camera_shake(strength: 12, duration: 30)
+      @camera.shake(strength: 12, duration: 30)
     end
     @player.start_jump_animation
     register_combo_grapple
@@ -703,7 +594,7 @@ class Game
     item_option_width = 256
     start_x = (Grid.w / 2) - (item_option_width) - padding
     2.times.each do |i|
-      powerup_type = POWERUP_TYPES.sample
+      powerup_type = Powerups::TYPES.sample
       new_item_option = Powerups.build(type: powerup_type)
       state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(25..100), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
     end

@@ -32,6 +32,15 @@ class GoldManager
     @gold
   end
 
+  def collect_intersecting(rect)
+    collected, remaining = @gold.partition do |gold|
+      Geometry.intersect_rect?(rect, gold)
+    end
+
+    @gold = remaining
+    collected
+  end
+
   private
 
   def spawn_if_ready
@@ -73,15 +82,6 @@ class GoldManager
       gold.x += offset_x / distance * pull
       gold.y += offset_y / distance * pull
     end
-  end
-
-  def collect_intersecting(rect)
-    collected, remaining = @gold.partition do |gold|
-      Geometry.intersect_rect?(rect, gold)
-    end
-
-    @gold = remaining
-    collected
   end
 
   def remove_expired_gold

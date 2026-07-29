@@ -1,21 +1,23 @@
 * EXCEPTION:
-* ERROR: :player_x method missing on ~GoldManager~.
+* ERROR: :screen_y method missing on ~Camera~.
 
-#+begin_src ~GoldManager#inspect~
-#<GoldManager:0x164cd2b0 @spawn_x=#<Proc:0x785adc44ac40@app/game.rb:109 (lambda)>, @expired=#<Proc:0x785adc3ca400@app/game.rb:111 (lambda)>, @next_spawn_x=926, @spawn_scheduler=#<SpawnScheduler:0x164cd0d0>, @spawn_y=#<Proc:0x785adc3ca300@app/game.rb:110 (lambda)>, @next_spawn_y=720, @gold=[{:x=>346, :y=>667.9000442342716, :w=>16, :h=>16, :dy=>7.44285082367548, :type=>:gold, :path=>"sprites/rocks/gold_ore.png"}], @next_fall_speed=4.142265839302508>
-#+end_src ~GoldManager#inspect~
+#+begin_src ~Camera#inspect~
+#<Camera:0x7fcd0486f6a0 @shake_x=-2.881580526200905, @x=640.0, @zoom=1.05, @zoom_in_duration=15.0, @zoom_start=1.0, @shake_duration=30, @shake_strength=12, @zoom_out_duration=20, @zoom_target=1.05, @shake_y=4.414821620750735, @shake_time=29.0, @screen_x=640, @zoom_started_tick=171, @screen_y=360, @y=360.0>
+#+end_src ~Camera#inspect~
 
 
 
 The method named
-  :player_x
-doesn't exist on [GoldManager, #<Class:#<GoldManager:0x164cd2b0>>].
+  :screen_y
+doesn't exist on [Camera, #<Class:#<Camera:0x7fcd0486f6a0>>].
 
 (suggestions above)
 ** Backtrace:
-*** app/gold_manager.rb:63:in attract_gold_to
-*** app/gold_manager.rb:57:in attract_gold_to
-*** app/gold_manager.rb:27:in tick
-*** app/game.rb:168:in calc
-*** app/game.rb:130:in tick
-*** app/main.rb:22:in tick
+*** app/camera.rb:47:in world_to_screen
+*** app/game.rb:237:in camera_transform_combo_particle
+*** app/game.rb:189:in render_combo_particles
+*** app/game.rb:188:in render_combo_particles
+*** app/game.rb:176:in render_world
+*** app/game.rb:156:in render
+*** app/game.rb:104:in tick
+*** app/main.rb:24:in tick
