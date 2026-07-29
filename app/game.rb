@@ -234,7 +234,7 @@ class Game
     progress = elapsed.fdiv(COMBO_PARTICLE_DURATION).clamp(0, 1)
     screen_position = @camera.world_to_screen(
       x: particle.x,
-      y: particle.y + COMBO_PARTICLE_FLOAT_DISTANCE
+      y: particle.y + (COMBO_PARTICLE_FLOAT_DISTANCE * progress)
     )
 
     {
