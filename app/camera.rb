@@ -1,9 +1,11 @@
 class Camera
-  def initialize(x:, y:, screen_x:, screen_y:)
+  def initialize(x:, y:, screen_x:, screen_y:, viewport_w:, viewport_h:)
     @x = x
     @y = y
     @screen_x = screen_x
     @screen_y = screen_y
+    @viewport_w = viewport_w
+    @viewport_h = viewport_h
 
     @zoom = 1.0
     @zoom_start =  1.0
@@ -60,6 +62,44 @@ class Camera
     @zoom_started_tick = Kernel.tick_count
     @zoom_in_duration = zoom_in_duration
     @zoom_out_duration = zoom_out_duration
+  end
+
+  def follow_vertical(target:, threshold: 0.65, smoothing: 0.2, min_y: nil)
+    target_center_y = target.y + (target.h / 2)
+
+    visible = visible_world_rect
+
+    threshold_y = visible.y + (visible.h * threshold)
+
+    target_camera_y =
+      if target_center_y > threshold_y
+        @y + (target_center_y - threshold_y)
+      elsif target_center_y < threshold_y
+        @y - (threshold_y - target_center_y)
+      else
+        @y
+      end
+
+    target_camera_y = [target_camera_y, min_y].max if min_y
+
+    @y = @y.lerp(target_camera_y, smoothing)
+  end
+
+  def move_to(x: @x, y: @y)
+    @x = x
+    @y = y
+  end
+
+  def visible_world_rect
+    world_w = @viewport_w.fdiv(@zoom)
+    world_h = @viewport_h.fdiv(@zoom)
+
+    {
+      x: @x - (world_w / 2),
+      y: @y - (world_h / 2),
+      w: world_w,
+      h: world_h
+    }
   end
 
   private

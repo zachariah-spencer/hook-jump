@@ -1,23 +1,18 @@
-* EXCEPTION:
-* ERROR: :screen_y method missing on ~Camera~.
+* RELOAD EXCEPTION: ~require~ order might not be valid (or require statement may be missing).
+An uninitialized constant exception was thrown while files were being loaded. Make sure that your ~require~
+and ~require_relative~ statements are ordered correctly. To debug require load order put the following at the TOP of =app/main.rb=
 
-#+begin_src ~Camera#inspect~
-#<Camera:0x7fcd0486f6a0 @shake_x=-2.881580526200905, @x=640.0, @zoom=1.05, @zoom_in_duration=15.0, @zoom_start=1.0, @shake_duration=30, @shake_strength=12, @zoom_out_duration=20, @zoom_target=1.05, @shake_y=4.414821620750735, @shake_time=29.0, @screen_x=640, @zoom_started_tick=171, @screen_y=360, @y=360.0>
-#+end_src ~Camera#inspect~
+#+begin_src
+  # main.rb
+  # very first line
+  $gtk.debug_require!
 
-
-
-The method named
-  :screen_y
-doesn't exist on [Camera, #<Class:#<Camera:0x7fcd0486f6a0>>].
-
-(suggestions above)
+  # rest of require statements/code
+  require ...
+#+end_src
+* EXCEPTION THROWN:
+* EXCEPTION: ~Runtime#add_to_require_queue~ failed for =app/game.rb=.
+uninitialized constant Game::SCREEN_BORDER_SPAWN_BUFFER
 ** Backtrace:
-*** app/camera.rb:47:in world_to_screen
-*** app/game.rb:237:in camera_transform_combo_particle
-*** app/game.rb:189:in render_combo_particles
-*** app/game.rb:188:in render_combo_particles
-*** app/game.rb:176:in render_world
-*** app/game.rb:156:in render
-*** app/game.rb:104:in tick
-*** app/main.rb:24:in tick
+*** app/game.rb:11
+*** app/game.rb:1

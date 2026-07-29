@@ -1,28 +1,28 @@
 module Rocks
 
-  def self.build(type:, spawn_x:, fall_speed:)
+  def self.build(type:, spawn_x:, spawn_y:, fall_speed:)
     case type
     when :basic
-      basic(spawn_x: spawn_x, fall_speed: fall_speed)
+      basic(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     when :bomb
-      bomb(spawn_x: spawn_x, fall_speed: fall_speed)
+      bomb(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     when :down
-      down(spawn_x: spawn_x, fall_speed: fall_speed)
+      down(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     when :up
-      up(spawn_x: spawn_x, fall_speed: fall_speed)
+      up(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     when :gold
-      gold(spawn_x: spawn_x, fall_speed: fall_speed)
+      gold(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     when :shop
-      shop(spawn_x: spawn_x, fall_speed: fall_speed)
+      shop(spawn_x: spawn_x, spawn_y: spawn_y, fall_speed: fall_speed)
     else
       raise ArgumentError, "Unknown rock type: #{type.inspect}"
     end
   end
 
-  def self.basic(spawn_x:, fall_speed:)
+  def self.basic(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 800,
+      y: spawn_y,
       anchor_x: 0.5,
       anchor_y: 0.5,
       w: 64,
@@ -39,10 +39,10 @@ module Rocks
     }
   end
 
-  def self.bomb(spawn_x:, fall_speed:)
+  def self.bomb(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       r: 255,
@@ -54,10 +54,10 @@ module Rocks
     }
   end
 
-  def self.down(spawn_x:, fall_speed:)
+  def self.down(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       r: 255,
@@ -69,10 +69,10 @@ module Rocks
     }
   end
 
-  def self.up(spawn_x:, fall_speed:)
+  def self.up(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       r: 255,
@@ -84,10 +84,10 @@ module Rocks
     }
   end
 
-  def self.gold(spawn_x:, fall_speed:)
+  def self.gold(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       r: 255,
@@ -99,10 +99,10 @@ module Rocks
     }
   end
 
-  def self.shop(spawn_x:, fall_speed:)
+  def self.shop(spawn_x:, spawn_y:, fall_speed:)
     {
       x: spawn_x,
-      y: 720,
+      y: spawn_y,
       w: 64,
       h: 64,
       r: 255,

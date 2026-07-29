@@ -4,47 +4,11 @@ class Game
 
   FONT = "fonts/carterone.ttf"
 
-  DIFFICULTY_RAMP_DURATION = 105.seconds
-  EASY_TO_MEDIUM_DIFFICULTY_DURATION = 35.seconds
-  MEDIUM_TO_HARD_DIFFICULTY_DURATION = 70.seconds
-
-  EASY_MIN_ROCK_SPAWN_DELAY = 0.22.seconds
-  EASY_MAX_ROCK_SPAWN_DELAY = 0.42.seconds
-  EASY_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 12
-  EASY_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 16
-  EASY_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 8
-  EASY_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 12
-  EASY_MIN_SHOP_ROCK_SPAWN_COUNTDOWN = 14
-  EASY_MAX_SHOP_ROCK_SPAWN_COUNTDOWN = 18
-  EASY_MIN_ROCK_FALL_SPEED = 3.8
-  EASY_MAX_ROCK_FALL_SPEED = 5.3
-
-  MEDIUM_MIN_ROCK_SPAWN_DELAY = 0.18.seconds
-  MEDIUM_MAX_ROCK_SPAWN_DELAY = 0.34.seconds
-  MEDIUM_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 7
-  MEDIUM_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 10
-  MEDIUM_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 7
-  MEDIUM_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 10
-  MEDIUM_MIN_SHOP_ROCK_SPAWN_COUNTDOWN = 18
-  MEDIUM_MAX_SHOP_ROCK_SPAWN_COUNTDOWN = 20
-  MEDIUM_MIN_ROCK_FALL_SPEED = 4.6
-  MEDIUM_MAX_ROCK_FALL_SPEED = 6.2
-
-  HARD_MIN_ROCK_SPAWN_DELAY = 0.14.seconds
-  HARD_MAX_ROCK_SPAWN_DELAY = 0.26.seconds
-  HARD_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 4
-  HARD_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 7
-  HARD_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 6
-  HARD_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 9
-  HARD_MIN_SHOP_ROCK_SPAWN_COUNTDOWN = 20
-  HARD_MAX_SHOP_ROCK_SPAWN_COUNTDOWN = 40
-  HARD_MIN_ROCK_FALL_SPEED = 5.2
-  HARD_MAX_ROCK_FALL_SPEED = 7.2
-
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
+  SCREEN_BORDER_SPAWN_PADDING = 256
 
   def initialize(args)
   end
@@ -73,21 +37,44 @@ class Game
       y: 360.0,
       screen_x: 640,
       screen_y: 360,
+      viewport_w: Grid.w,
+      viewport_h: Grid.h
     )
 
-    # difficulty = calc_current_difficulty_levers
-    @rock_manager = RockManager.new(difficulty: calc_current_difficulty_levers, spawn_x: -> { WorldSpawnBounds.random_x })
+    @rock_manager = RockManager.new(
+        spawn_x: -> { WorldSpawnBounds.random_x },
+        spawn_y: -> {
+          visible = @camera.visible_world_rect
+          visible.y + visible.h + 64
+        },
+        expired: -> (rock) {
+          visible = @camera.visible_world_rect
+          rock.y + rock.h < rock.y - SCREEN_BORDER_SPAWN_PADDING
+        }
+      )
 
     @powerup_manager = PowerupManager.new(
       spawn_x: -> { WorldSpawnBounds.random_x },
-      spawn_y: -> { Grid.h },
-      expired: -> (powerup) { powerup.y <= -powerup.h }
+      spawn_y: -> {
+        visible = @camera.visible_world_rect
+        visible.y + visible.h + 64
+      },
+      expired: -> (powerup) {
+        visible = @camera.visible_world_rect
+        powerup.y + powerup.h < powerup.y - SCREEN_BORDER_SPAWN_PADDING
+      }
     )
 
     @gold_manager = GoldManager.new(
       spawn_x: -> { WorldSpawnBounds.random_x },
-      spawn_y: -> { Grid.h },
-      expired: -> (gold) { gold.y < -16 }
+      spawn_y: -> {
+        visible = @camera.visible_world_rect
+        visible.y + visible.h + 64
+      },
+      expired: -> (gold) {
+        visible = @camera.visible_world_rect
+        gold.y + gold.h < gold.y - SCREEN_BORDER_SPAWN_PADDING
+       }
     )
 
     state.shop_items = []
@@ -135,13 +122,22 @@ class Game
         end
       end
       @powerup_manager.tick
-      @rock_manager.tick(difficulty: calc_current_difficulty_levers)
+
+      rock_difficulty_elapsed =
+        if state.run_started_tick
+          state.run_started_tick.elapsed_time - state.total_time_paused
+        else
+          0
+        end
+
+      @rock_manager.tick(elapsed: rock_difficulty_elapsed)
       @gold_manager.tick(
         attraction_target: @player,
         attraction_active: !!state.run_started_tick
       )
       calc_active_powerup_effects
       calc_combo
+      @camera.follow_vertical(target: @player, threshold: 0.65, min_y: Grid.h / 2) if state.run_started_tick
       @camera.tick
       calc_collisions if state.run_started_tick
     else
@@ -600,44 +596,12 @@ class Game
     end
   end
 
-  def calc_current_difficulty_levers
-    if state.run_started_tick
-      elapsed = state.run_started_tick.elapsed_time
-    else
-      elapsed = 0.0
-    end
-
-    if elapsed < EASY_TO_MEDIUM_DIFFICULTY_DURATION
-      t = elapsed.fdiv(EASY_TO_MEDIUM_DIFFICULTY_DURATION).clamp(0, 1)
-
-      {
-        min_rock_spawn_delay: EASY_MIN_ROCK_SPAWN_DELAY.lerp(MEDIUM_MIN_ROCK_SPAWN_DELAY, t),
-        max_rock_spawn_delay: EASY_MAX_ROCK_SPAWN_DELAY.lerp(MEDIUM_MAX_ROCK_SPAWN_DELAY, t),
-        min_down_rock_spawn_countdown: EASY_MIN_DOWN_ROCK_SPAWN_COUNTDOWN.lerp(MEDIUM_MIN_DOWN_ROCK_SPAWN_COUNTDOWN, t).round,
-        max_down_rock_spawn_countdown: EASY_MAX_DOWN_ROCK_SPAWN_COUNTDOWN.lerp(MEDIUM_MAX_DOWN_ROCK_SPAWN_COUNTDOWN, t).round,
-        min_special_rock_spawn_countdown: EASY_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN.lerp(MEDIUM_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN, t).round,
-        max_special_rock_spawn_countdown: EASY_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN.lerp(MEDIUM_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN, t).round,
-        min_rock_fall_speed: EASY_MIN_ROCK_FALL_SPEED.lerp(MEDIUM_MIN_ROCK_FALL_SPEED, t),
-        max_rock_fall_speed: EASY_MAX_ROCK_FALL_SPEED.lerp(MEDIUM_MAX_ROCK_FALL_SPEED, t),
-      }
-    else
-      t = (elapsed - EASY_TO_MEDIUM_DIFFICULTY_DURATION).fdiv(MEDIUM_TO_HARD_DIFFICULTY_DURATION).clamp(0, 1)
-
-      {
-        min_rock_spawn_delay: MEDIUM_MIN_ROCK_SPAWN_DELAY.lerp(HARD_MIN_ROCK_SPAWN_DELAY, t),
-        max_rock_spawn_delay: MEDIUM_MAX_ROCK_SPAWN_DELAY.lerp(HARD_MAX_ROCK_SPAWN_DELAY, t),
-        min_down_rock_spawn_countdown: MEDIUM_MIN_DOWN_ROCK_SPAWN_COUNTDOWN.lerp(HARD_MIN_DOWN_ROCK_SPAWN_COUNTDOWN, t).round,
-        max_down_rock_spawn_countdown: MEDIUM_MAX_DOWN_ROCK_SPAWN_COUNTDOWN.lerp(HARD_MAX_DOWN_ROCK_SPAWN_COUNTDOWN, t).round,
-        min_special_rock_spawn_countdown: MEDIUM_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN.lerp(HARD_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN, t).round,
-        max_special_rock_spawn_countdown: MEDIUM_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN.lerp(HARD_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN, t).round,
-        min_rock_fall_speed: MEDIUM_MIN_ROCK_FALL_SPEED.lerp(HARD_MIN_ROCK_FALL_SPEED, t),
-        max_rock_fall_speed: MEDIUM_MAX_ROCK_FALL_SPEED.lerp(HARD_MAX_ROCK_FALL_SPEED, t),
-      }
-    end
-  end
-
   def calc_end_game
     enable_input
+    @camera.move_to(
+      x: Grid.w / 2,
+      y: Grid.h / 2
+    )
     state.run_started_tick = nil
     state.total_time_paused = 0
     state.run_ended_tick = Kernel.tick_count
