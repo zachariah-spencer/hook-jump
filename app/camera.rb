@@ -64,18 +64,18 @@ class Camera
     @zoom_out_duration = zoom_out_duration
   end
 
-  def follow_vertical(target:, threshold: 0.65, smoothing: 0.2, min_y: nil)
+  def follow_vertical(target:, lower_threshold: 0.35, upper_threshold: 0.65, smoothing: 0.2, min_y: nil)
     target_center_y = target.y + (target.h / 2)
 
     visible = visible_world_rect
-
-    threshold_y = visible.y + (visible.h * threshold)
+    lower_y = visible.y + (visible.h * lower_threshold)
+    upper_y = visible.y + (visible.h * upper_threshold)
 
     target_camera_y =
-      if target_center_y > threshold_y
-        @y + (target_center_y - threshold_y)
-      elsif target_center_y < threshold_y
-        @y - (threshold_y - target_center_y)
+      if target_center_y > upper_y
+        @y + (target_center_y - upper_y)
+      elsif target_center_y < lower_y
+        @y - (lower_y - target_center_y)
       else
         @y
       end

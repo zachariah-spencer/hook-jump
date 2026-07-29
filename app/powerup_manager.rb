@@ -42,6 +42,7 @@ class PowerupManager
     return unless @spawn_scheduler.ready?
 
     powerup_type = Powerups::TYPES.sample
+    reset_spawn_variables
 
     @powerups << Powerups.build(
       type: powerup_type,
@@ -50,7 +51,6 @@ class PowerupManager
     )
 
     @spawn_scheduler.reset!
-    reset_spawn_variables
   end
 
   def move_powerups

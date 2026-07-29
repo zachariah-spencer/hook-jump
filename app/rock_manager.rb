@@ -191,6 +191,7 @@ class RockManager
   def spawn_if_ready
     return unless @spawn_scheduler.ready?
     selected_rock_type = select_type
+    reset_spawn_variables
     new_rock = Rocks.build(
       type: selected_rock_type,
       spawn_x: @next_rock_spawn_x,
@@ -199,7 +200,6 @@ class RockManager
     )
     @rocks << new_rock
     @spawn_scheduler.reset!
-    reset_spawn_variables
   end
 
   def move_rocks

@@ -45,6 +45,7 @@ class GoldManager
 
   def spawn_if_ready
     return unless @spawn_scheduler.ready?
+    reset_spawn_variables
 
     @gold << Gold.build(
       spawn_x: @next_spawn_x,
@@ -53,7 +54,6 @@ class GoldManager
     )
 
     @spawn_scheduler.reset!
-    reset_spawn_variables
   end
 
   def move_gold

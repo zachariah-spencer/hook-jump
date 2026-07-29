@@ -8,7 +8,7 @@ class Game
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
-  SCREEN_BORDER_SPAWN_PADDING = 256
+  SCREEN_BORDER_SPAWN_PADDING = 128
 
   def initialize(args)
   end
@@ -49,7 +49,7 @@ class Game
         },
         expired: -> (rock) {
           visible = @camera.visible_world_rect
-          rock.y + rock.h < rock.y - SCREEN_BORDER_SPAWN_PADDING
+          rock.y + rock.h < visible.y - SCREEN_BORDER_SPAWN_PADDING
         }
       )
 
@@ -61,7 +61,7 @@ class Game
       },
       expired: -> (powerup) {
         visible = @camera.visible_world_rect
-        powerup.y + powerup.h < powerup.y - SCREEN_BORDER_SPAWN_PADDING
+        powerup.y + powerup.h < visible.y - SCREEN_BORDER_SPAWN_PADDING
       }
     )
 
@@ -73,7 +73,7 @@ class Game
       },
       expired: -> (gold) {
         visible = @camera.visible_world_rect
-        gold.y + gold.h < gold.y - SCREEN_BORDER_SPAWN_PADDING
+        gold.y + gold.h < visible.y - SCREEN_BORDER_SPAWN_PADDING
        }
     )
 
@@ -137,7 +137,7 @@ class Game
       )
       calc_active_powerup_effects
       calc_combo
-      @camera.follow_vertical(target: @player, threshold: 0.65, min_y: Grid.h / 2) if state.run_started_tick
+      @camera.follow_vertical(target: @player, lower_threshold: 0.35, upper_threshold: 0.65, min_y: Grid.h / 2) if state.run_started_tick
       @camera.tick
       calc_collisions if state.run_started_tick
     else
@@ -178,6 +178,7 @@ class Game
     render_combo_ui
     render_powerup_ui
     render_shop if state.shop_open_tick && state.shop_alpha > 0
+    outputs.watch "#{@player.y}"
   end
 
   def render_combo_particles
