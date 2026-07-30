@@ -9,6 +9,7 @@ require_relative "hook"
 require_relative "player"
 require_relative "rocks"
 require_relative "rock_manager"
+require_relative "lava"
 require_relative "game"
 
 module Main

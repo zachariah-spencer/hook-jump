@@ -1,18 +1,11 @@
-* RELOAD EXCEPTION: ~require~ order might not be valid (or require statement may be missing).
-An uninitialized constant exception was thrown while files were being loaded. Make sure that your ~require~
-and ~require_relative~ statements are ordered correctly. To debug require load order put the following at the TOP of =app/main.rb=
+* EXCEPTION:
+* ERROR:
+{:x=>484.0, :y=>104.0, :w=>256, :h=>96, :r=>20, :g=>20, :b=>20, :a=>24.93333333333333}
 
-#+begin_src
-  # main.rb
-  # very first line
-  $gtk.debug_require!
+I don't know how to use the above Hash with SDL's FFI. Please
+add a method on the object called ~primitive_marker~ that
+returns :solid, :sprite, :label, :line, or :border. If the object
+is a Hash, please add { primitive_marker: :PRIMITIVE_SYMBOL } to the Hash.
 
-  # rest of require statements/code
-  require ...
-#+end_src
-* EXCEPTION THROWN:
-* EXCEPTION: ~Runtime#add_to_require_queue~ failed for =app/game.rb=.
-uninitialized constant Game::SCREEN_BORDER_SPAWN_BUFFER
+
 ** Backtrace:
-*** app/game.rb:11
-*** app/game.rb:1

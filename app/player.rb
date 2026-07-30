@@ -17,8 +17,8 @@ class Player
 
 
   def initialize
-    @x = (Grid.w / 2) - 16
-    @y = Grid.h - 128
+    @x = (Grid.w / 2) - 32
+    @y = (Grid.h / 2) - 32
     @w = 64
     @h = 64
     @acceleration = 0.6

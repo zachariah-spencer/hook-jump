@@ -214,7 +214,7 @@ class Game
         flip_horizontally: state.player.face_direction < 0,
       )
     )
-    outputs.solids << camera_transform(state.hook) if player_attacking?
+    # outputs.solids << camera_transform(state.hook) if player_attacking?
     render_hook_shot
     state.rock_manager.rocks.each do |rock|
       outputs.sprites << camera_transform(
@@ -302,8 +302,8 @@ class Game
   def render_combo_ui
     return unless combo_timer_active?
 
-    outputs.solids << combo_timer_backdrop_rect
-    outputs.solids << combo_timer_fill_rect
+    # outputs.solids << combo_timer_backdrop_rect
+    # outputs.solids << combo_timer_fill_rect
     outputs.labels << combo_count_label if combo_active?
   end
 
@@ -508,16 +508,16 @@ class Game
     }
 
     state.shop_items.each do |si|
-      outputs.solids << {
-        x: si.x,
-        y: si.y,
-        w: si.w,
-        h: si.h,
-        r: si.r,
-        g: si.g,
-        b: si.b,
-        a: [state.shop_alpha, 190].min,
-      }
+      #  outputs.solids << {
+      #   x: si.x,
+      #   y: si.y,
+      #   w: si.w,
+      #   h: si.h,
+      #   r: si.r,
+      #   g: si.g,
+      #   b: si.b,
+      #   a: [state.shop_alpha, 190].min,
+      # }
       outputs.labels << {
         x: si.x + (si.w / 2),
         y: si.y + (si.w / 2) + 32,
@@ -546,7 +546,7 @@ class Game
       }
     end
 
-    outputs.solids << shop_leave_button_rect
+    # outputs.solids << shop_leave_button_rect
     outputs.labels << {
       x: (Grid.w / 2) - 28,
       y: (Grid.h / 2) - 196 - 16,

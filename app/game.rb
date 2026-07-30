@@ -23,14 +23,15 @@ class Game
     state.shop_open_tick = nil
     state.shop_close_tick = nil
     state.shop_alpha = 0
-    @player = Player.new
-    @player.args = args
     state.gold_modifier = 1.0
     state.shop_leave_button_color = {
       r: 20,
       g: 20,
       b: 20,
     }
+
+    @player = Player.new
+    @player.args = args
 
     @camera = Camera.new(
       x: 640.0,
@@ -39,6 +40,13 @@ class Game
       screen_y: 360,
       viewport_w: Grid.w,
       viewport_h: Grid.h
+    )
+
+    @lava = Lava.new(
+      surface_y: 16,
+      start_speed: 0.2,
+      max_speed: 0.5,
+      ramp_duration: 120
     )
 
     @rock_manager = RockManager.new(
@@ -110,11 +118,20 @@ class Game
 
   def calc
     unless state.paused_tick
+
+      elapsed_run_time =
+        if state.run_started_tick
+          state.run_started_tick.elapsed_time - state.total_time_paused
+        else
+          0
+        end
+
       calc_longest_run_time if state.run_started_tick
       if state.run_started_tick
         grappled_rock = @player.tick
+        @lava.tick(elapsed: elapsed_run_time)
 
-        if @player.dead?
+        if @player.dead? || @lava.intersect_rect?(@player)
           calc_end_game
         elsif grappled_rock
           handle_rock_effect(grappled_rock)
@@ -123,14 +140,9 @@ class Game
       end
       @powerup_manager.tick
 
-      rock_difficulty_elapsed =
-        if state.run_started_tick
-          state.run_started_tick.elapsed_time - state.total_time_paused
-        else
-          0
-        end
+      
 
-      @rock_manager.tick(elapsed: rock_difficulty_elapsed)
+      @rock_manager.tick(elapsed: elapsed_run_time)
       @gold_manager.tick(
         attraction_target: @player,
         attraction_active: !!state.run_started_tick
@@ -169,6 +181,10 @@ class Game
       outputs.sprites << @camera.transform_rect(primitive)
     end
 
+    @lava.primitives(view: @camera.visible_world_rect).each do |primitive|
+      outputs.primitives << @camera.transform_rect(primitive).merge({primitive_marker: :solid})
+    end
+
     render_combo_particles
   end
 
@@ -190,8 +206,8 @@ class Game
   def render_combo_ui
     return unless combo_timer_active?
 
-    outputs.solids << combo_timer_backdrop_rect
-    outputs.solids << combo_timer_fill_rect
+    outputs.primitives << combo_timer_backdrop_rect
+    outputs.primitives << combo_timer_fill_rect
     outputs.labels << combo_count_label if combo_active?
   end
 
@@ -363,7 +379,7 @@ class Game
     }
 
     state.shop_items.each do |si|
-      outputs.solids << {
+      outputs.primitives << {
         x: si.x,
         y: si.y,
         w: si.w,
@@ -372,6 +388,7 @@ class Game
         g: si.g,
         b: si.b,
         a: [state.shop_alpha, 190].min,
+        primitive_marker: :solid
       }
       outputs.labels << {
         x: si.x + (si.w / 2),
@@ -401,7 +418,7 @@ class Game
       }
     end
 
-    outputs.solids << shop_leave_button_rect
+    outputs.primitives << shop_leave_button_rect
     outputs.labels << {
       x: (Grid.w / 2) - 28,
       y: (Grid.h / 2) - 196 - 16,
@@ -427,6 +444,7 @@ class Game
         g: state.shop_leave_button_color.g,
         b: state.shop_leave_button_color.b,
         a: [state.shop_alpha, 190].min,
+        primitive_marker: :solid
     }
   end
 
@@ -610,6 +628,7 @@ class Game
     @player.args = args
     state.gold_modifier = 1.0
     @rock_manager.restore_normal_spawning!
+    @lava.reset!
     reset_combo
   end
 
@@ -722,6 +741,7 @@ class Game
       g: 15,
       b: 185,
       a: 100,
+      primitive_marker: :solid
     }
   end
 
@@ -732,6 +752,7 @@ class Game
       g: 15,
       b: 185,
       a: 220,
+      primitive_marker: :solid
     )
   end
 
