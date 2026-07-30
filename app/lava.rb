@@ -34,9 +34,9 @@ class Lava
         y: bottom,
         w: view.w,
         h: height,
-        r: 190,
-        g: 35,
-        b: 15,
+        r: 89,
+        g: 23,
+        b: 122,
         a: 230
       },
 
@@ -46,9 +46,9 @@ class Lava
         y: @surface_y - 10,
         w: view.w,
         h: 10,
-        r: 255,
-        g: 95,
-        b: 15,
+        r: 169,
+        g: 3,
+        b: 252,
         a: 255
       },
 
@@ -58,9 +58,9 @@ class Lava
         y: @surface_y - 3,
         w: view.w,
         h: 3,
-        r: 255,
-        g: 225,
-        b: 80,
+        r: 221,
+        g: 153,
+        b: 255,
         a: 255
       }
     ]

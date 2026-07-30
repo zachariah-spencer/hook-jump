@@ -2,7 +2,7 @@ class Game
   include WorldSpawnBounds
   attr_dr
 
-  FONT = "fonts/carterone.ttf"
+
 
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
@@ -279,11 +279,11 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 64,
-      font: FONT,
+      font: Styles::FONT,
       text: particle.text,
-      r: 255,
-      g: 245,
-      b: 120,
+      r: 230,
+      g: 171,
+      b: 255,
       a: 255.lerp(0, progress),
     }
   end
@@ -323,6 +323,7 @@ class Game
       x: @player.x + (@player.w / 2),
       y: @player.y + @player.h + 12,
       text: "#{number}x",
+      font: Styles::FONT,
       started_active_tick: active_tick_count,
     }
   end
@@ -393,7 +394,7 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 64,
-      font: FONT,
+      font: Styles::FONT,
       text: "The Rock Shoppe",
       r: 220,
       g: 220,
@@ -419,7 +420,7 @@ class Game
         anchor_x: 0.5,
         anchor_y: 0.5,
         size_px: 32,
-        font: FONT,
+        font: Styles::FONT,
         r: 220,
         g: 220,
         b: 220,
@@ -432,7 +433,7 @@ class Game
         anchor_x: 0.5,
         anchor_y: 0.5,
         size_px: 32,
-        font: FONT,
+        font: Styles::FONT,
         r: 220,
         g: 220,
         b: 220,
@@ -448,7 +449,7 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 24,
-      font: FONT,
+      font: Styles::FONT,
       r: 220,
       g: 220,
       b: 220,
@@ -698,42 +699,41 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 96,
-      font: FONT,
+      font: Styles::FONT,
       text: "Press A or D to Play",
-      r: 95,
-      g: 15,
-      b: 185,
+      r: 176,
+      g: 32,
+      b: 247,
     }
   end
 
   def run_timer_label
     ticks_factoring_pause_elapsed = (state.run_started_tick ? state.run_started_tick.elapsed_time : 0) - state.total_time_paused
-    ticks_elapsed = ticks_factoring_pause_elapsed
-    timer_value_seconds = ticks_elapsed / 60
+    timer_value_seconds = ticks_factoring_pause_elapsed / 60.0
 
     {
-      x: Grid.w / 2,
-      y: Grid.h - 32,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
-      size_px: 64,
-      font: FONT,
-      text: "Time: #{timer_value_seconds.round(1)}",
-      r: 95,
-      g: 15,
-      b: 185,
-    }
-  end
-
-  def longest_run_time_label
-      {
       x: 96,
       y: Grid.h - 32,
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 32,
-      font: FONT,
-      text: "Best Time: #{state.longest_run_time}",
+      font: Styles::FONT,
+      text: "Time: #{ '%.1f' % timer_value_seconds.round(1) }",
+      r: 176,
+      g: 32,
+      b: 247,
+    }
+  end
+
+  def longest_run_time_label
+      {
+      x: Grid.w - 32 - 96,
+      y: Grid.h - 32,
+      anchor_x: 0.5,
+      anchor_y: 0.5,
+      size_px: 32,
+      font: Styles::FONT,
+      text: "Best Time: #{ '%.1f' % state.longest_run_time }",
       r: 95,
       g: 15,
       b: 185,
@@ -742,12 +742,12 @@ class Game
 
   def gold_label
       {
-      x: Grid.w - 32 - 32,
-      y: Grid.h - 32,
+      x: 96,
+      y: Grid.h - 32 - 32,
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 32,
-      font: FONT,
+      font: Styles::FONT,
       text: "Gold: #{@player.gold.round(0)}",
       r: 95,
       g: 15,
@@ -762,8 +762,8 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 32,
-      font: FONT,
-      text: "#{display_name} - #{(time_left / 60).round(1)}",
+      font: Styles::FONT,
+      text: "#{display_name} - #{'%.1f' % (time_left / 60)}",
       r: 140,
       g: 255,
       b: 250,
@@ -812,7 +812,7 @@ class Game
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 24,
-      font: FONT,
+      font: Styles::FONT,
       text: "Combo #{state.combo_manager.grapple_count}",
       r: 95,
       g: 15,

@@ -1,3 +1,4 @@
+require_relative "styles"
 require_relative "camera"
 require_relative "world_spawn_bounds"
 require_relative "spawn_scheduler"

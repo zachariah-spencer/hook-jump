@@ -53,9 +53,9 @@ class AltitudeGauge
       y: @y,
       w: @w,
       h: 8,
-      r: 255,
-      g: 70,
-      b: 15,
+      r: 221,
+      g: 153,
+      b: 255,
       a: 255,
       primitive_marker: :solid
     }
@@ -80,9 +80,9 @@ class AltitudeGauge
       y: player_marker_y - 6,
       w: 12,
       h: 12,
-      r: 80,
-      g: 220,
-      b: 255,
+      r: 176,
+      g: 32,
+      b: 247,
       a: 255,
       primitive_marker: :solid
     }
@@ -92,12 +92,13 @@ class AltitudeGauge
     {
       x: @x + (@w / 2),
       y: @y + @h + 28,
-      text: "Top #{height_meters.floor} m",
+      text: "Top #{ '%.1f' % height_meters.floor} m",
+      font: Styles::FONT,
       anchor_x: 0.5,
       size_px: 24,
-      r: 255,
-      g: 255,
-      b: 255,
+      r: 176,
+      g: 32,
+      b: 247,
       primitive_marker: :label
     }
   end
@@ -106,7 +107,8 @@ class AltitudeGauge
     {
       x: @x + (@w / 2) + 40,
       y: player_marker_y + 12,
-      text: "#{current_height_meters.floor} m",
+      text: "#{ '%.1f' % current_height_meters.floor} m",
+      font: Styles::FONT,
       anchor_x: 0.5,
       size_px: 24,
       r: 255,
@@ -120,14 +122,15 @@ class AltitudeGauge
     {
       x: @x + (@w / 2),
       y: @y - 10,
-      text: "Lava #{lava_gap_meters.round(1)} m",
+      text: "Lava #{ '%.1f' % lava_gap_meters.round(1)} m",
+      font: Styles::FONT,
       anchor_x: 0.5,
       alignment_enum: 0,
       anchor_y: 1.0,
       size_px: 18,
-      r: 255,
-      g: 150,
-      b: 60,
+      r: 221,
+        g: 153,
+        b: 255,
       primitive_marker: :label
     }
   end
@@ -165,27 +168,28 @@ class AltitudeGauge
       x: @x + (@w / 2),
       y: @y + @h + 58,
       text: "LAVA!",
+      font: Styles::FONT,
       anchor_x: 0.5,
-      size_px: 24,
-      r: 255,
-      g: 45,
-      b: 25,
+      size_px: 32,
+      r: 221,
+      g: 153,
+      b: 255,
       a: warning_alpha,
       primitive_marker: :label
     }
   end
 
   def warning_alpha
-    140 + ((Kernel.tick_count / 10.0).sin * 115).abs
+    110 + ((Kernel.tick_count * 7.5).sin * 115).abs
   end
 
   def danger_color(progress)
     if progress <= 0.2
-      { r: 255, g: 40, b: 30, a: 255 }
+      { r: 102, g: 6, b: 195, a: 255 }
     elsif progress <= 0.5
-      { r: 255, g: 155, b: 30, a: 255 }
+      { r: 207, g: 110, b: 255, a: 255 }
     else
-      { r: 80, g: 220, b: 120, a: 255 }
+      { r: 232, g: 186, b: 255, a: 255 }
     end
   end
 
