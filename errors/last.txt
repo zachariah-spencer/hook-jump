@@ -1,11 +1,8 @@
-* EXCEPTION:
-* ERROR:
-{:x=>484.0, :y=>104.0, :w=>256, :h=>96, :r=>20, :g=>20, :b=>20, :a=>24.93333333333333}
-
-I don't know how to use the above Hash with SDL's FFI. Please
-add a method on the object called ~primitive_marker~ that
-returns :solid, :sprite, :label, :line, or :border. If the object
-is a Hash, please add { primitive_marker: :PRIMITIVE_SYMBOL } to the Hash.
-
-
+* EXCEPTION: 'current_height_label': wrong number of arguments (1 for 2)
 ** Backtrace:
+*** app/altitude_gauge.rb:105:in current_height_label
+*** app/altitude_gauge.rb:26:in primitives
+*** app/game.rb:217:in render_ui
+*** app/game.rb:182:in render
+*** app/game.rb:113:in tick
+*** app/main.rb:26:in tick

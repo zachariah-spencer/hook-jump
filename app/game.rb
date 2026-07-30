@@ -9,6 +9,7 @@ class Game
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
   SCREEN_BORDER_SPAWN_PADDING = 128
+  PIXELS_PER_METER = 32.0
 
   def initialize(args)
   end
@@ -33,6 +34,10 @@ class Game
     @player = Player.new
     @player.args = args
 
+    @run_start_y = @player.y
+    player_center_y = @player.y + (@player.h / 2.0)
+    @highest_player_y = player_center_y
+
     @camera = Camera.new(
       x: 640.0,
       y: 360.0,
@@ -43,11 +48,20 @@ class Game
     )
 
     @lava = Lava.new(
-      surface_y: 16,
-      start_speed: 0.2,
-      max_speed: 0.5,
-      ramp_duration: 120
+      surface_y: 8,
+      start_speed: 0.5,
+      max_speed: 1.85,
+      ramp_duration: 200
     )
+
+    @altitude_gauge = AltitudeGauge.new(
+      x: 60,
+      y: 100,
+      w: 24,
+      h: 400,
+      displayed_gap_meters: 100.0
+    )
+
 
     @rock_manager = RockManager.new(
         spawn_x: -> { WorldSpawnBounds.random_x },
@@ -131,6 +145,9 @@ class Game
         grappled_rock = @player.tick
         @lava.tick(elapsed: elapsed_run_time)
 
+        player_center_y = @player.y + (@player.h / 2.0)
+        @highest_player_y = [@highest_player_y, player_center_y].max
+
         if @player.dead? || @lava.intersect_rect?(@player)
           calc_end_game
         elsif grappled_rock
@@ -140,7 +157,7 @@ class Game
       end
       @powerup_manager.tick
 
-      
+
 
       @rock_manager.tick(elapsed: elapsed_run_time)
       @gold_manager.tick(
@@ -193,8 +210,14 @@ class Game
     outputs.labels << [run_timer_label, longest_run_time_label, gold_label]
     render_combo_ui
     render_powerup_ui
+
+    outputs.primitives << @altitude_gauge.primitives(
+      height_meters: altitude_measurements.height_meters,
+      current_height_meters: altitude_measurements.current_height_meters,
+      lava_gap_meters: altitude_measurements.lava_gap_meters
+    )
+
     render_shop if state.shop_open_tick && state.shop_alpha > 0
-    outputs.watch "#{@player.y}"
   end
 
   def render_combo_particles
@@ -617,16 +640,29 @@ class Game
 
   def calc_end_game
     enable_input
+
     @camera.move_to(
       x: Grid.w / 2,
       y: Grid.h / 2
     )
+
     state.run_started_tick = nil
     state.total_time_paused = 0
     state.run_ended_tick = Kernel.tick_count
+    state.last_run_height_meters = (@highest_player_y - @run_start_y)
+      .fdiv(PIXELS_PER_METER)
+      .clamp(0.0, Float::INFINITY)
+    state.highest_height_meters = [state.highest_height_meters || 0.0, state.last_run_height_meters].max
+
     @player = Player.new
     @player.args = args
+
+    @run_start_y = @player.y
+    player_center_y = @player.y + (@player.h / 2.0)
+    @highest_player_y = player_center_y
+
     state.gold_modifier = 1.0
+
     @rock_manager.restore_normal_spawning!
     @lava.reset!
     reset_combo
@@ -640,6 +676,19 @@ class Game
 
   def shutdown
     DR.write_file "data/save.txt", "#{state.longest_run_time}" if state.longest_run_time
+  end
+
+  def altitude_measurements
+    player_danger_y =
+      @player.y + (@player.h * 0.4)
+
+    {
+      height_meters: [(@highest_player_y - @run_start_y).fdiv(PIXELS_PER_METER), 0.0].max,
+
+      current_height_meters: [(@player.y - @run_start_y).fdiv(PIXELS_PER_METER), 0.0].max,
+
+      lava_gap_meters: [(player_danger_y - @lava.surface_y).fdiv(PIXELS_PER_METER), 0.0].max
+    }
   end
 
   def start_instructions_label

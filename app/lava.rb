@@ -1,6 +1,8 @@
 class Lava
   attr_reader :surface_y
 
+  PIXELS_PER_METER = 32.0
+
   def initialize(surface_y:, start_speed:, max_speed:, ramp_duration:)
     @initial_surface_y = surface_y
     @surface_y = surface_y
