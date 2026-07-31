@@ -23,8 +23,6 @@ module Rocks
     {
       x: spawn_x,
       y: spawn_y,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
       w: 64,
       h: 64,
       r: 255,

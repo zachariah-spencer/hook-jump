@@ -49,8 +49,8 @@ class Game
 
     @lava = Lava.new(
       surface_y: 8,
-      start_speed: 0.5,
-      max_speed: 1.85,
+      start_speed: 0.75,
+      max_speed: 2.85,
       ramp_duration: 200
     )
 
@@ -59,7 +59,7 @@ class Game
       y: 100,
       w: 24,
       h: 400,
-      displayed_gap_meters: 100.0
+      displayed_gap_meters: 200.0
     )
 
 

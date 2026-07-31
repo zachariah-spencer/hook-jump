@@ -36,6 +36,24 @@ class RockManager
   ROCK_BREAK_FRAME_HOLD = 3
   SPECIAL_ROCK_TYPES = [:up, :bomb, :gold]
 
+  MIN_REPEAT_DISTANCE = 96
+  ROCK_SIZE = 64
+  VISUAL_GAP = 16
+  SPAWN_SAFETY_HEIGHT = 160
+  SPAWN_CANDIDATE_COUNT = 10
+  SPAWN_HISTORY_LIMIT = 5
+
+  MIN_RECENT_SPAWN_DISTANCE = 96
+  PREFERRED_STEP_MIN = 128
+  PREFERRED_STEP_MAX = 224
+  MAX_FLOW_STEP = 256
+
+  SPAWN_SAFETY_HEIGHT = 160
+  HORIZONTAL_SAFETY_DISTANCE = 80
+
+  FLOW_RANDOMNESS = 8.0
+  TOP_CANDIDATE_COUNT = 3
+
   def initialize(spawn_x:, spawn_y:, expired:)
     @difficulty = difficulty_at(0)
     @spawn_x = spawn_x
@@ -46,6 +64,9 @@ class RockManager
         Numeric.rand(@difficulty.min_rock_spawn_delay..@difficulty.max_rock_spawn_delay)
       }
     )
+    @spawn_history = []
+    @flow_direction = nil
+    @direction_streak = 0
     @rocks = []
     @next_special_rock_spawn_countdown = Numeric.rand(@difficulty.min_special_rock_spawn_countdown..@difficulty.max_special_rock_spawn_countdown)
     @next_down_rock_spawn_countdown = Numeric.rand(@difficulty.min_down_rock_spawn_countdown..@difficulty.max_down_rock_spawn_countdown)
@@ -100,9 +121,152 @@ class RockManager
   private
 
   def reset_spawn_variables
-    @next_rock_spawn_x = @spawn_x.call
     @next_rock_spawn_y = @spawn_y.call
+
+
     @next_rock_dy = Numeric.rand(@difficulty.min_rock_fall_speed..@difficulty.max_rock_fall_speed)
+
+    @next_rock_spawn_x = select_next_spawn_x(
+      spawn_y: @next_rock_spawn_y,
+      fall_speed: @next_rock_dy
+    )
+  end
+
+  def select_next_spawn_x(spawn_y:, fall_speed:)
+    candidates = SPAWN_CANDIDATE_COUNT.times.map { @spawn_x.call }
+
+    safe_candidates = candidates.reject do |x|
+      unsafe_near_spawn?(x, spawn_y, fall_speed)
+    end
+
+    safe_and_spaced_candidates = safe_candidates.reject do |x|
+      near_recent_spawn?(x)
+    end
+
+    pool =
+      if safe_and_spaced_candidates.any?
+        safe_and_spaced_candidates
+      elsif safe_candidates.any?
+        safe_candidates
+      else
+        candidates
+      end
+
+    select_from_best_candidates(pool)
+  end
+
+  def select_from_best_candidates(candidates)
+    scored_candidates = candidates.map do |x|
+      random_variation = Numeric.rand(0.0..FLOW_RANDOMNESS)
+
+      {
+        x: x,
+        score: flow_score(x) + random_variation
+      }
+    end
+
+    best_candidates = scored_candidates.sort_by { |candidate| -candidate.score }.first(TOP_CANDIDATE_COUNT)
+
+    best_candidates.sample.x
+  end
+
+  def flow_score(candidate)
+    return 0 if @spawn_history.empty?
+
+
+    step_distance_score(candidate) +
+      direction_score(candidate) +
+      lane_freshness_score(candidate) +
+      edge_score(candidate)
+  end
+
+  def step_distance_score(candidate)
+    last_x = @spawn_history.last.x
+    distance = (candidate - last_x).abs
+
+    case distance
+    when 0...MIN_RECENT_SPAWN_DISTANCE
+      -50
+    when MIN_RECENT_SPAWN_DISTANCE...PREFERRED_STEP_MIN
+      10
+    when PREFERRED_STEP_MIN..PREFERRED_STEP_MAX
+      30
+    when PREFERRED_STEP_MAX..MAX_FLOW_STEP
+      10
+    else
+      -20
+    end
+  end
+
+  def direction_between(from_x, to_x)
+    to_x <=> from_x
+  end
+
+  def direction_score(candidate)
+    return 0 if @spawn_history.length < 2
+
+    previous = @spawn_history[-2]
+    last = @spawn_history[-1]
+
+    previous_direction = direction_between(previous.x, last.x)
+    candidate_direction = direction_between(last.x, candidate)
+
+    return -10 if candidate_direction == 0
+
+    if candidate_direction == previous_direction
+      15
+    else
+      8
+    end
+  end
+
+  def lane_freshness_score(candidate)
+    recency_penalties = [20, 12, 6, 3]
+
+    score = 0
+
+    @spawn_history.reverse.each_with_index do |spawn, index|
+      penalty = recency_penalties[index] || 0
+      distance = (candidate - spawn.x).abs
+
+      score -= penalty if distance < MIN_RECENT_SPAWN_DISTANCE
+    end
+
+    score
+  end
+
+  def edge_score(candidate)
+    edge_region_width = 128
+    last_spawn = @spawn_history.last
+
+    near_left_edge = candidate < WorldSpawnBounds.min_x + edge_region_width
+    near_right_edge = candidate > WorldSpawnBounds.max_x - edge_region_width
+
+    return 0 unless near_left_edge || near_right_edge
+    return 0 unless last_spawn
+
+    direction = direction_between(last_spawn.x, candidate)
+    moving_outward = (near_left_edge && direction < 0) || (near_right_edge && direction > 0)
+
+    moving_outward ? -15 : 5
+  end
+
+  def near_recent_spawn?(x)
+    last_spawn = @spawn_history.last
+    return false unless last_spawn
+
+    (x - last_spawn.x).abs < MIN_REPEAT_DISTANCE
+  end
+
+  def unsafe_near_spawn?(x, spawn_y, fall_speed)
+    @rocks.any? do |rock|
+      next false unless collidable?(rock)
+
+      vertical_distance = (spawn_y - rock.y).abs
+      horizontal_distance = (x - rock.x).abs
+
+      vertical_distance < SPAWN_SAFETY_HEIGHT && horizontal_distance < HORIZONTAL_SAFETY_DISTANCE
+    end
   end
 
   def break_animation_complete?(rock)
@@ -199,6 +363,14 @@ class RockManager
       fall_speed: @next_rock_dy
     )
     @rocks << new_rock
+
+    @spawn_history << {
+      x: new_rock.x,
+      y: new_rock.y,
+      dy: new_rock.dy
+    }
+    @spawn_history.shift while @spawn_history.length > SPAWN_HISTORY_LIMIT
+
     @spawn_scheduler.reset!
   end
 

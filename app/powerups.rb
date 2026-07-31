@@ -63,10 +63,10 @@ module Powerups
       r: 255,
       g: 255,
       b: 255,
-      name: "Gold Rush!(2x $)",
+      name: "Gold Rush! (2x $)",
       start_tick: Kernel.tick_count,
       type: :gold_rush,
-      duration: 15.seconds,
+      duration: 25.seconds,
       active: false,
     }
   end
@@ -84,7 +84,7 @@ module Powerups
       name: "Eagle",
       start_tick: Kernel.tick_count,
       type: :eagle,
-      duration: 10.seconds,
+      duration: 3.seconds,
       active: false,
     }
   end
