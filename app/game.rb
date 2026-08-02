@@ -10,13 +10,21 @@ class Game
   BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
   SCREEN_BORDER_SPAWN_PADDING = 128
   PIXELS_PER_METER = 32.0
+  LAVA_INTRO_DURATION = 2.0.seconds
+  CAMERA_INTRO_DURATION = 1.25.seconds
+  PLAYER_LAVA_START_BUFFER = 1250
+  DEATH_SEQUENCE_DURATION = 1.75.seconds
+
 
   def initialize(args)
   end
 
   def start
     state.input_active = true
+    state.run_phase = :pre_game
+    state.run_intro_started_tick = nil
     state.run_started_tick = nil
+    state.death_sequence_ended_tick = nil
     state.run_ended_tick = nil
     state.longest_run_time = DR.read_file("data/save.txt").to_f || 0.0
     state.paused_tick = nil
@@ -30,6 +38,8 @@ class Game
       g: 20,
       b: 20,
     }
+
+    @background_rock_field = BackgroundRockField.new
 
     @player = Player.new
     @player.args = args
@@ -48,7 +58,7 @@ class Game
     )
 
     @lava = Lava.new(
-      surface_y: 8,
+      surface_y: 200,
       start_speed: 0.75,
       max_speed: 2.85,
       ramp_duration: 200
@@ -125,14 +135,93 @@ class Game
     state.move_direction_y += 1 if inputs.keyboard.up && @player.carried_by_eagle
     state.hook_input_pressed = inputs.keyboard.key_down.space
     state.hook_input_released = inputs.keyboard.key_up.space
-
-    return if state.run_started_tick
-    state.run_started_tick = Kernel.tick_count if state.move_direction_x != 0 || state.move_direction_y != 0 || state.hook_input_pressed
+    state.start_pressed = state.move_direction_x != 0 || state.move_direction_y != 0 || state.hook_input_pressed
   end
 
   def calc
-    unless state.paused_tick
 
+    @background_rock_field.tick(view: @camera.visible_world_rect)
+    calc_lava_audio
+
+    case state.run_phase
+    when :pre_game
+      calc_pre_game
+    when :lava_intro
+      calc_lava_intro
+    when :camera_intro
+      calc_camera_intro
+    when :active
+      calc_active_run
+    when :death_sequence
+      calc_death_sequence
+    end
+  end
+
+  def calc_pre_game
+    audio.delete(:run_music) if audio.include?(:run_music)
+    audio[:pre_game_music] ||= { input: Sounds::PRE_GAME_MUSIC, looping: true, gain: 0.25 }
+    audio[:wind] ||= {
+      input: Sounds::WIND_AMBIENCE,
+      looping: true,
+      gain: 0.55
+    }
+
+    if state.start_pressed
+      state.run_phase = :lava_intro
+      state.run_intro_started_tick = Kernel.tick_count
+      audio[:lava_rise] = { input: Sounds::LAVA_RISE, gain: 0.5 }
+    end
+  end
+
+  def calc_lava_intro
+    audio.delete(:pre_game_music)
+    audio[:run_music] ||= { input: Sounds::RUN_MUSIC, looping: true, gain: 0.25 }
+    @camera.tick
+    elapsed = state.run_intro_started_tick.elapsed_time
+
+    @camera.shake(strength: 15.0, duration: LAVA_INTRO_DURATION)
+    @lava.tick(elapsed: elapsed)
+
+    return if elapsed < LAVA_INTRO_DURATION
+
+    prepare_camera_intro
+  end
+
+  def prepare_camera_intro
+    player_danger_offset = @player.h * 0.4
+
+    @player.y = @lava.surface_y + PLAYER_LAVA_START_BUFFER - player_danger_offset
+    @player.dx = 0
+    @player.dy = 0
+
+    @run_start_y = @player.y
+    @highest_player_y = @player.y + (@player.h / 2.0)
+
+    target_camera_y = @player.y + (@player.h / 2.0)
+    @camera.move_vertical_to(y: target_camera_y, duration: CAMERA_INTRO_DURATION)
+
+    state.run_phase = :camera_intro
+  end
+
+  def calc_camera_intro
+    @camera.tick
+    @rock_manager.tick(elapsed: 0)
+
+    start_active_run unless @camera.moving?
+  end
+
+  def start_active_run
+    state.run_phase = :active
+    state.run_started_tick = Kernel.tick_count
+
+    state.move_direction_x = 0
+    state.move_direction_y = 0
+    state.hook_input_pressed = false
+    state.hook_input_released = false
+  end
+
+  def calc_active_run
+    unless state.paused_tick
       elapsed_run_time =
         if state.run_started_tick
           state.run_started_tick.elapsed_time - state.total_time_paused
@@ -149,8 +238,12 @@ class Game
         @highest_player_y = [@highest_player_y, player_center_y].max
 
         if @player.dead? || @lava.intersect_rect?(@player)
-          calc_end_game
+          prepare_death_sequence
         elsif grappled_rock
+          audio[:rock_break] = {
+              input: Sounds::ROCK_BREAK,
+              gain: 0.85,
+            }
           handle_rock_effect(grappled_rock)
           enable_input
         end
@@ -176,13 +269,55 @@ class Game
     end
   end
 
+  def prepare_death_sequence
+    audio[:game_over] = {
+      input: Sounds::GAME_OVER,
+      gain: 0.6,
+      pitch: 1.25
+    }
+
+    disable_input
+    @player.carried_by_eagle = false
+    state.run_ended_tick = Kernel.tick_count
+    state.run_phase = :death_sequence
+  end
+
+  def calc_death_sequence
+    if state.run_ended_tick.elapsed_time <= DEATH_SEQUENCE_DURATION
+      @player.play_death_animation
+      @player.tick
+    else
+      calc_end_game
+    end
+  end
+
   def render
     outputs.background_color = [0, 0, 0]
     render_world
     render_ui
   end
 
+  def calc_lava_audio
+    view = @camera.visible_world_rect
+    lava_surface_visible = @lava.surface_y >= view.y && @lava.surface_y <= view.y + view.h
+
+    if lava_surface_visible
+      audio[:lava_bubbling] ||= {
+        input: Sounds::LAVA_BUBBLING_AMBIENCE,
+        looping: true,
+        gain: 0.4
+      }
+    else
+      audio.delete(:lava_bubbling)
+    end
+  end
+
   def render_world
+
+    @background_rock_field.primitives(view: @camera.visible_world_rect).each do |primitive|
+      outputs.sprites << @camera.transform_rect(primitive)
+    end
+
     @player.primitives.each do |primitive|
       outputs.sprites << @camera.transform_rect(primitive)
     end
@@ -206,16 +341,24 @@ class Game
   end
 
   def render_ui
-    outputs.labels << start_instructions_label unless state.run_started_tick
-    outputs.labels << [run_timer_label, longest_run_time_label, gold_label]
+    outputs.labels << start_instructions_label if state.run_phase == :pre_game
     render_combo_ui
     render_powerup_ui
 
-    outputs.primitives << @altitude_gauge.primitives(
-      height_meters: altitude_measurements.height_meters,
-      current_height_meters: altitude_measurements.current_height_meters,
-      lava_gap_meters: altitude_measurements.lava_gap_meters
-    )
+    if state.run_phase == :active
+      outputs.labels << [run_timer_label, longest_run_time_label, gold_label]
+
+      outputs.primitives << @altitude_gauge.primitives(
+        height_meters: altitude_measurements.height_meters,
+        current_height_meters: altitude_measurements.current_height_meters,
+        lava_gap_meters: altitude_measurements.lava_gap_meters
+      )
+    elsif state.run_phase == :death_sequence
+      game_over_fade_time = state.run_ended_tick.elapsed_time
+      game_over_progress = (game_over_fade_time / 0.25.seconds).clamp(0, 1)
+      game_over_alpha = (255 * game_over_progress).round
+      outputs.labels << game_over_label(a: game_over_alpha)
+    end
 
     render_shop if state.shop_open_tick && state.shop_alpha > 0
   end
@@ -500,9 +643,17 @@ class Game
     @player.y = Grid.h if @player.y <= (0 - @player.h)
 
     collected_gold = @gold_manager.collect_intersecting(@player)
+    audio[:gold] = {
+      input: Sounds::PICKUP_GOLD,
+      gain: 0.4
+    } unless collected_gold.empty?
     @player.gold += collected_gold.count * state.gold_modifier
 
     collected_powerups = @powerup_manager.collect_intersecting(@player)
+    audio[:pickup_powerup] = {
+      input: Sounds::PICKUP_POWERUP,
+      gain: 0.4
+    } unless collected_powerups.empty?
     collected_powerups.each do |powerup|
       @player.add_powerup(powerup_type: powerup.type)
     end
@@ -581,6 +732,10 @@ class Game
       @player.jump!
       @camera.shake(strength: 12, duration: 30)
     when :bomb
+      audio[:rock_explodes] = {
+        input: Sounds::ROCK_EXPLODES,
+        gain: 0.75
+      }
       @player.jump!
       @camera.shake(strength: 30, duration: 120)
 
@@ -601,6 +756,7 @@ class Game
       @player.jump!
       @camera.shake(strength: 12, duration: 30)
     when :gold
+      #TODO: Add gold rush sfx
       @player.jump!
       @camera.shake(strength: 12, duration: 30)
       @player.gold += 5 * state.gold_modifier
@@ -647,6 +803,8 @@ class Game
       y: Grid.h / 2
     )
 
+    state.run_phase = :pre_game
+    state.run_intro_started_tick = nil
     state.run_started_tick = nil
     state.total_time_paused = 0
     state.run_ended_tick = Kernel.tick_count
@@ -665,7 +823,11 @@ class Game
     state.gold_modifier = 1.0
 
     @rock_manager.restore_normal_spawning!
+    @rock_manager.reset!
+    @gold_manager.reset!
+    @powerup_manager.reset!
     @lava.reset!
+    @background_rock_field.reset!
     reset_combo
   end
 
@@ -686,7 +848,7 @@ class Game
     {
       height_meters: [(@highest_player_y - @run_start_y).fdiv(PIXELS_PER_METER), 0.0].max,
 
-      current_height_meters: [(@player.y - @run_start_y).fdiv(PIXELS_PER_METER), 0.0].max,
+      current_height_meters: (@player.y - @run_start_y).fdiv(PIXELS_PER_METER),
 
       lava_gap_meters: [(player_danger_y - @lava.surface_y).fdiv(PIXELS_PER_METER), 0.0].max
     }
@@ -704,6 +866,23 @@ class Game
       r: 176,
       g: 32,
       b: 247,
+      a: start_instructions_alpha
+    }
+  end
+
+  def game_over_label(a: 255)
+    {
+      x: Grid.w / 2,
+      y: Grid.h / 2,
+      anchor_x: 0.5,
+      anchor_y: 0.5,
+      size_px: 96,
+      font: Styles::FONT,
+      text: "Game Over",
+      r: 176,
+      g: 32,
+      b: 247,
+      a: a
     }
   end
 
@@ -819,6 +998,10 @@ class Game
       b: 185,
       a: 255,
     }
+  end
+
+  def start_instructions_alpha
+    110 + ((Kernel.tick_count * 2.5).sin * 115).abs
   end
 
 end

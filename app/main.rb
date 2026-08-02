@@ -1,4 +1,6 @@
 require_relative "styles"
+require_relative "sounds"
+require_relative "background_rock_field"
 require_relative "camera"
 require_relative "world_spawn_bounds"
 require_relative "spawn_scheduler"

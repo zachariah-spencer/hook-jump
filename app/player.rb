@@ -18,9 +18,11 @@ class Player
 
   def initialize
     @x = (Grid.w / 2) - 32
-    @y = (Grid.h / 2) - 32
+    @y = 1200
     @w = 64
     @h = 64
+    @a = 255
+    @sprite_rotation = 0
     @acceleration = 0.6
     @deceleration = 0.35
     @max_speed = 5.0
@@ -94,10 +96,21 @@ class Player
     # calc attacking
     if state.hook_input_pressed && can_shoot_hook?
       @hook.shoot(direction: @face_direction)
+      audio[:hook_shot] = {
+        input: Sounds::HOOK_SHOT,
+        gain: 0.45,
+        pitch: 1.5
+      }
       @jump_sprite_started_tick = nil
     end
 
-    @hook.cancel_shot if state.hook_input_released
+    if state.hook_input_released
+      @hook.cancel_shot
+      audio[:hook_whoosh] = {
+        input: Sounds::HOOK_WHOOSH,
+        gain: 0.45,
+      }
+    end
     @hook.calc(owner: self)
 
     calc_offscreen_indicator
@@ -108,6 +121,15 @@ class Player
   end
 
   def start_grapple(target_rock)
+    audio[:rock_hit] = {
+      input: Sounds::ROCK_HIT,
+      gain: 0.95,
+    }
+    audio[:whoosh] = {
+      input: Sounds::HOOK_WHOOSH,
+      gain: 0.45,
+      pitch: 0.7
+    }
     @hook.hit_target = target_rock
     @grappling_tick = Kernel.tick_count
     @grapple_start_x = @x
@@ -171,14 +193,28 @@ class Player
   end
 
   def jump!
+    audio[:jump] = {
+      input: Sounds::JUMP,
+      gain: 1.0,
+    }
     @dy += JUMP_VELOCITY
   end
 
   def boosted_jump!
+    audio[:jump] = {
+      input: Sounds::JUMP,
+      gain: 1.0,
+      pitch: 1.35
+    }
     @dy += BOOSTED_JUMP_VELOCITY
   end
 
   def knock_down!
+    audio[:jump] = {
+      input: Sounds::JUMP,
+      gain: 1.0,
+      pitch: 0.7
+    }
     @dy -= JUMP_VELOCITY / 2
   end
 
@@ -238,14 +274,23 @@ class Player
       y: @y,
       w: @w,
       h: @h,
+      a: @a,
+      angle: @sprite_rotation,
+
       path: sprite_path,
       flip_horizontally: @face_direction < 0
     }
 
     primitives_array.concat(@hook.primitives(owner: self))
 
-    primitives_array << @offscreen_indicator if @y >= Grid.h
+    # primitives_array << @offscreen_indicator if @y >= Grid.h
 
     primitives_array
+  end
+
+  def play_death_animation()
+    @dy = -0.4
+    @a = @a > 0 ? @a - 3.0 : 0.0
+    @sprite_rotation += 1.33
   end
 end

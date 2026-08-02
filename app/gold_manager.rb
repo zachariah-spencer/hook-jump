@@ -41,6 +41,10 @@ class GoldManager
     collected
   end
 
+  def reset!
+    @gold.clear
+  end
+
   private
 
   def spawn_if_ready

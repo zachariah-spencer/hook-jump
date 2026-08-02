@@ -36,6 +36,10 @@ class PowerupManager
     collected
   end
 
+  def reset!
+    @powerups.clear
+  end
+
   private
 
   def spawn_if_ready

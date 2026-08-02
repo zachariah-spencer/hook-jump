@@ -1,4 +1,5 @@
 class Camera
+
   def initialize(x:, y:, screen_x:, screen_y:, viewport_w:, viewport_h:)
     @x = x
     @y = y
@@ -18,11 +19,23 @@ class Camera
     @shake_time = 0.0
     @shake_duration = 1
     @shake_strength = 0
+    @move_started_tick = nil
+    @move_start_y = @y
+    @move_target_y = @y
+    @move_duration = 0
   end
 
   def tick
+    calc_move
     calc_shake
     calc_zoom
+  end
+
+  def move_vertical_to(y:, duration:)
+    @move_start_y = @y
+    @move_target_y = y
+    @move_duration = duration
+    @move_started_tick = Kernel.tick_count
   end
 
   def transform_rect(rect)
@@ -102,7 +115,31 @@ class Camera
     }
   end
 
+  def moving?
+    @move_started_tick
+  end
+
   private
+
+  def calc_move
+    return unless @move_started_tick
+
+    progress = @move_started_tick.elapsed_time.fdiv(@move_duration).clamp(0.0, 1.0)
+
+    eased_progress = Easing.smooth_step(
+      initial: 0.0,
+      final: 1.0,
+      perc: progress,
+      power: 3
+    )
+
+    @y = @move_start_y.lerp(@move_target_y, eased_progress)
+
+    if progress >= 1.0
+      @y = @move_target_y
+      @move_started_tick = nil
+    end
+  end
 
   def calc_shake
     if @shake_time > 0.0

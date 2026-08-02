@@ -118,6 +118,10 @@ class RockManager
     end
   end
 
+  def reset!
+    @rocks.clear
+  end
+
   private
 
   def reset_spawn_variables
