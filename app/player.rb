@@ -3,16 +3,19 @@ class Player
   attr_accessor :x, :y, :w, :h, :dx, :dy, :gold, :powerups, :carried_by_eagle, :jump_sprite_started_tick, :hook
   attr_dr
 
-  MAX_FALL_SPEED = 2.5
-  FALL_ACCELERATION = 0.8
-  FAST_FALL_RECOVERY = 0.33
-  MOVE_ACCELERATION = 0.6
-  MOVE_DECELERATION = 0.35
-  JUMP_VELOCITY = 22.0
+  MAX_FALL_SPEED = 3.25
+  FALL_ACCELERATION = 1.0
+  FAST_FALL_RECOVERY = 0.45
+  MOVE_ACCELERATION = 1.75
+  MOVE_DECELERATION = 1.5
+  JUMP_VELOCITY = 32.0
   BOOSTED_JUMP_VELOCITY = JUMP_VELOCITY * 1.5
-  JUMP_SPRITE_DURATION = 0.5.seconds
+  JUMP_SPRITE_DURATION = 0.6.seconds
+  JUMP_INVINCIBILITY_DURATION = 0.7.seconds
+  ROCK_HIT_DURATION = 0.5.seconds
+  ROCK_HIT_BLINK_INTERVAL = 5
   GRAPPLE_DURATION = 0.25.seconds
-  MAX_SPEED = 5.0
+  MAX_SPEED = 10.0
   EAGLE_MOVE_SPEED = MAX_SPEED * 1.75
 
 
@@ -23,14 +26,16 @@ class Player
     @h = 64
     @a = 255
     @sprite_rotation = 0
-    @acceleration = 0.6
-    @deceleration = 0.35
-    @max_speed = 5.0
+    @acceleration = MOVE_ACCELERATION
+    @deceleration = MOVE_DECELERATION
+    @max_speed = MAX_SPEED
     @gold = 0
     @powerups = []
 
     @hook = Hook.new((@x / 2) - 4, (@y / 2) - 4)
     @jump_sprite_started_tick = nil
+    @jump_invincibility_started_tick = nil
+    @rock_hit_started_tick = nil
     @grappling_tick = nil
     @dx = 0
     @dy = 0
@@ -218,8 +223,38 @@ class Player
     @dy -= JUMP_VELOCITY / 2
   end
 
+  def hit_by_rock!
+    @dy -= JUMP_VELOCITY / 3.0
+    @rock_hit_started_tick = Kernel.tick_count
+  end
+
   def start_jump_animation
     @jump_sprite_started_tick = Kernel.tick_count
+    @jump_invincibility_started_tick = Kernel.tick_count
+  end
+
+  def can_be_hit_by_rock?
+    !grappling? && !jumping_off_rock? && !jump_invincible? && !rock_hit_active?
+  end
+
+  def jumping_off_rock?
+    @jump_sprite_started_tick &&
+      @jump_sprite_started_tick.elapsed_time < JUMP_SPRITE_DURATION
+  end
+
+  def jump_invincible?
+    @jump_invincibility_started_tick &&
+      @jump_invincibility_started_tick.elapsed_time < JUMP_INVINCIBILITY_DURATION
+  end
+
+  def rock_hit_active?
+    @rock_hit_started_tick &&
+      @rock_hit_started_tick.elapsed_time < ROCK_HIT_DURATION
+  end
+
+  def rock_hit_blinking_red?
+    rock_hit_active? &&
+      (Kernel.tick_count - @rock_hit_started_tick) % (ROCK_HIT_BLINK_INTERVAL * 2) < ROCK_HIT_BLINK_INTERVAL
   end
 
   def can_shoot_hook?
@@ -252,8 +287,7 @@ class Player
   def sprite_path
     return "sprites/player/grabbing_rock_player.png" if grappling?
 
-    if @jump_sprite_started_tick &&
-        @jump_sprite_started_tick.elapsed_time < JUMP_SPRITE_DURATION
+    if jumping_off_rock?
       return "sprites/player/jumping_player.png"
     end
 
@@ -269,12 +303,16 @@ class Player
 
   def primitives
     primitives_array = []
+    blinking_red = rock_hit_blinking_red?
     primitives_array << {
       x: @x,
       y: @y,
       w: @w,
       h: @h,
-      a: @a,
+      r: 255,
+      g: blinking_red ? 64 : 255,
+      b: blinking_red ? 64 : 255,
+      a: jump_invincible? ? [@a, 160].min : @a,
       angle: @sprite_rotation,
 
       path: sprite_path,

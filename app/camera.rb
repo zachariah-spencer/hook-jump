@@ -8,7 +8,7 @@ class Camera
     @viewport_w = viewport_w
     @viewport_h = viewport_h
 
-    @zoom = 1.0
+    @zoom = 0.8
     @zoom_start =  1.0
     @zoom_target = 1.0
     @zoom_started_tick = nil
@@ -23,6 +23,8 @@ class Camera
     @move_start_y = @y
     @move_target_y = @y
     @move_duration = 0
+    @vertical_follow_direction = nil
+    @last_vertical_follow_direction = nil
   end
 
   def tick
@@ -77,18 +79,42 @@ class Camera
     @zoom_out_duration = zoom_out_duration
   end
 
-  def follow_vertical(target:, lower_threshold: 0.35, upper_threshold: 0.65, smoothing: 0.2, min_y: nil)
+  def follow_vertical(target:, lower_threshold: 0.20, upper_threshold: 0.6, smoothing: 0.09, reversal_hysteresis: 0.1, min_y: nil)
     target_center_y = target.y + (target.h / 2)
+    target_velocity_y = target.respond_to?(:dy) ? target.dy : 0
 
     visible = visible_world_rect
     lower_y = visible.y + (visible.h * lower_threshold)
     upper_y = visible.y + (visible.h * upper_threshold)
+    reversal_buffer = visible.h * reversal_hysteresis
+
+    if target_velocity_y > 0
+      @vertical_follow_direction = nil if @vertical_follow_direction == :down
+      upward_trigger_y = upper_y
+      upward_trigger_y += reversal_buffer if @last_vertical_follow_direction == :down
+
+      if @last_vertical_follow_direction == :up || target_center_y > upward_trigger_y
+        @vertical_follow_direction = :up
+        @last_vertical_follow_direction = :up
+      end
+    elsif target_velocity_y < 0
+      @vertical_follow_direction = nil if @vertical_follow_direction == :up
+      downward_trigger_y = lower_y
+      downward_trigger_y -= reversal_buffer if @last_vertical_follow_direction == :up
+
+      if @last_vertical_follow_direction == :down || target_center_y < downward_trigger_y
+        @vertical_follow_direction = :down
+        @last_vertical_follow_direction = :down
+      end
+    else
+      @vertical_follow_direction = nil
+    end
 
     target_camera_y =
-      if target_center_y > upper_y
+      if @vertical_follow_direction == :up
+        @y + (target_center_y - lower_y)
+      elsif @vertical_follow_direction == :down
         @y + (target_center_y - upper_y)
-      elsif target_center_y < lower_y
-        @y - (lower_y - target_center_y)
       else
         @y
       end
@@ -170,9 +196,9 @@ class Camera
     elsif elapsed < zoom_out_end_tick
       zoom_out_elapsed = elapsed - zoom_in_end_tick
       progress = zoom_out_elapsed.fdiv(@zoom_out_duration)
-      @zoom = @zoom_target.lerp(1.0, progress)
+      @zoom = @zoom_target.lerp(0.8, progress)
     else
-      @zoom = 1.0
+      @zoom = 0.8
       @zoom_started_tick = nil
     end
   end

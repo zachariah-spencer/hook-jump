@@ -7,7 +7,7 @@ class Game
   COMBO_RESET_DURATION = 2.0.seconds
   COMBO_PARTICLE_DURATION = 1.0.seconds
   COMBO_PARTICLE_FLOAT_DISTANCE = 64
-  BOMB_ROCK_EXPLOSION_RADIUS = 1280.0
+  BOMB_ROCK_CLEARANCE_ABOVE_SCREEN = 256
   SCREEN_BORDER_SPAWN_PADDING = 128
   PIXELS_PER_METER = 32.0
   LAVA_INTRO_DURATION = 2.0.seconds
@@ -33,11 +33,8 @@ class Game
     state.shop_close_tick = nil
     state.shop_alpha = 0
     state.gold_modifier = 1.0
-    state.shop_leave_button_color = {
-      r: 20,
-      g: 20,
-      b: 20,
-    }
+    state.shop_leave_button_hovered = false
+    state.shop_leave_button_clicked = false
 
     @background_rock_field = BackgroundRockField.new
 
@@ -59,8 +56,8 @@ class Game
 
     @lava = Lava.new(
       surface_y: 200,
-      start_speed: 0.75,
-      max_speed: 2.85,
+      start_speed: 0.9,
+      max_speed: 3.45,
       ramp_duration: 200
     )
 
@@ -69,7 +66,7 @@ class Game
       y: 100,
       w: 24,
       h: 400,
-      displayed_gap_meters: 200.0
+      displayed_gap_meters: 500.0
     )
 
 
@@ -77,7 +74,7 @@ class Game
         spawn_x: -> { WorldSpawnBounds.random_x },
         spawn_y: -> {
           visible = @camera.visible_world_rect
-          visible.y + visible.h + 64
+          visible.y + visible.h + 160
         },
         expired: -> (rock) {
           visible = @camera.visible_world_rect
@@ -159,11 +156,11 @@ class Game
 
   def calc_pre_game
     audio.delete(:run_music) if audio.include?(:run_music)
-    audio[:pre_game_music] ||= { input: Sounds::PRE_GAME_MUSIC, looping: true, gain: 0.25 }
+    audio[:pre_game_music] ||= { input: Sounds::PRE_GAME_MUSIC, looping: true, gain: 0.1 }
     audio[:wind] ||= {
       input: Sounds::WIND_AMBIENCE,
       looping: true,
-      gain: 0.55
+      gain: 0.35
     }
 
     if state.start_pressed
@@ -175,7 +172,7 @@ class Game
 
   def calc_lava_intro
     audio.delete(:pre_game_music)
-    audio[:run_music] ||= { input: Sounds::RUN_MUSIC, looping: true, gain: 0.25 }
+    audio[:run_music] ||= { input: Sounds::RUN_MUSIC, looping: true, gain: 0.08 }
     @camera.tick
     elapsed = state.run_intro_started_tick.elapsed_time
 
@@ -259,7 +256,7 @@ class Game
       )
       calc_active_powerup_effects
       calc_combo
-      @camera.follow_vertical(target: @player, lower_threshold: 0.35, upper_threshold: 0.65, min_y: Grid.h / 2) if state.run_started_tick
+      @camera.follow_vertical(target: @player, lower_threshold: 0.18, upper_threshold: 0.6, min_y: Grid.h / 2) if state.run_started_tick
       @camera.tick
       calc_collisions if state.run_started_tick
     else
@@ -498,36 +495,52 @@ class Game
       state.paused_tick = nil
     end
 
+    state.shop_items.each { |item| item.clicked = false }
+    state.shop_leave_button_clicked = false
     return if state.shop_close_tick
-    state.shop_items.each do |b|
-      if inputs.mouse.intersect_rect?(b)
-        b.g = 200
-        b.b = 200
 
-        if inputs.mouse.click && @player.gold >= b.price
+    state.shop_items.each do |b|
+      was_hovered = b.hovered
+      b.hovered = inputs.mouse.intersect_rect?(b)
+      play_shop_rollover_sound if b.hovered != was_hovered
+      b.clicked = b.hovered && !!inputs.mouse.click
+      if b.hovered
+
+        if b.clicked && @player.gold >= b.price
+          play_shop_press_sound
           @player.gold -= b.price
           @player.add_powerup(powerup_type: b.item_id)
           state.shop_close_tick = Kernel.tick_count
+        elsif b.clicked
+          play_shop_press_sound
         end
-
-      else
-        b.g = 20
-        b.b = 20
       end
     end
 
-    if inputs.mouse.intersect_rect?(shop_leave_button_rect)
-      state.shop_leave_button_color.g = 200
-      state.shop_leave_button_color.b = 200
-
-      if inputs.mouse.click
+    leave_button_was_hovered = state.shop_leave_button_hovered
+    state.shop_leave_button_hovered = inputs.mouse.intersect_rect?(shop_leave_button_rect)
+    play_shop_rollover_sound if state.shop_leave_button_hovered != leave_button_was_hovered
+    state.shop_leave_button_clicked = state.shop_leave_button_hovered && !!inputs.mouse.click
+    if state.shop_leave_button_hovered
+      if state.shop_leave_button_clicked
+        play_shop_press_sound
         state.shop_close_tick = Kernel.tick_count
       end
-
-    else
-      state.shop_leave_button_color.g = 20
-      state.shop_leave_button_color.b = 20
     end
+  end
+
+  def play_shop_rollover_sound
+    audio[:shop_ui_rollover] = {
+      input: Sounds::UI_ROLLOVER,
+      gain: 0.7
+    }
+  end
+
+  def play_shop_press_sound
+    audio[:shop_ui_press] = {
+      input: Sounds::UI_PRESS,
+      gain: 1.0
+    }
   end
 
   def render_shop
@@ -546,16 +559,16 @@ class Game
     }
 
     state.shop_items.each do |si|
-      outputs.primitives << {
+      outputs.sprites << {
         x: si.x,
         y: si.y,
         w: si.w,
         h: si.h,
-        r: si.r,
-        g: si.g,
-        b: si.b,
-        a: [state.shop_alpha, 190].min,
-        primitive_marker: :solid
+        path: si.clicked ? "sprites/ui/button_square_line.png" : "sprites/ui/button_square_depth_line.png",
+        r: si.hovered ? 220 : 255,
+        g: si.hovered ? 220 : 255,
+        b: si.hovered ? 220 : 255,
+        a: state.shop_alpha
       }
       outputs.labels << {
         x: si.x + (si.w / 2),
@@ -564,9 +577,9 @@ class Game
         anchor_y: 0.5,
         size_px: 32,
         font: Styles::FONT,
-        r: 220,
-        g: 220,
-        b: 220,
+        r: 55,
+        g: 55,
+        b: 65,
         a: state.shop_alpha,
         text: "#{si.display_name}"
       }
@@ -577,25 +590,25 @@ class Game
         anchor_y: 0.5,
         size_px: 32,
         font: Styles::FONT,
-        r: 220,
-        g: 220,
-        b: 220,
+        r: 130,
+        g: 95,
+        b: 20,
         a: state.shop_alpha,
         text: "#{si.price}"
       }
     end
 
-    outputs.primitives << shop_leave_button_rect
+    outputs.sprites << shop_leave_button_sprite
     outputs.labels << {
-      x: (Grid.w / 2) - 28,
-      y: (Grid.h / 2) - 196 - 16,
+      x: Grid.w / 2,
+      y: shop_leave_button_rect.y + (shop_leave_button_rect.h / 2),
       anchor_x: 0.5,
       anchor_y: 0.5,
       size_px: 24,
       font: Styles::FONT,
-      r: 220,
-      g: 220,
-      b: 220,
+      r: 55,
+      g: 55,
+      b: 65,
       a: state.shop_alpha,
       text: "Exit the Shoppe"
     }
@@ -603,16 +616,21 @@ class Game
 
   def shop_leave_button_rect
     {
-        x: (Grid.w / 2) - 128 - 28,
-        y: (Grid.h / 2) - 256,
-        w: 256,
-        h: 96,
-        r: state.shop_leave_button_color.r,
-        g: state.shop_leave_button_color.g,
-        b: state.shop_leave_button_color.b,
-        a: [state.shop_alpha, 190].min,
-        primitive_marker: :solid
+      x: (Grid.w / 2) - 192,
+      y: 64,
+      w: 384,
+      h: 128
     }
+  end
+
+  def shop_leave_button_sprite
+    shop_leave_button_rect.merge(
+      path: state.shop_leave_button_clicked ? "sprites/ui/button_rectangle_line.png" : "sprites/ui/button_rectangle_depth_line.png",
+      r: state.shop_leave_button_hovered ? 220 : 255,
+      g: state.shop_leave_button_hovered ? 220 : 255,
+      b: state.shop_leave_button_hovered ? 220 : 255,
+      a: state.shop_alpha
+    )
   end
 
   def shop_item(item_id:, price:, display_name:, x:, y:)
@@ -621,9 +639,8 @@ class Game
       y: y,
       w: 256,
       h: 256,
-      r: 20,
-      g: 20,
-      b: 20,
+      hovered: false,
+      clicked: false,
       item_id: item_id,
       display_name: display_name,
       price: price,
@@ -645,21 +662,29 @@ class Game
     collected_gold = @gold_manager.collect_intersecting(@player)
     audio[:gold] = {
       input: Sounds::PICKUP_GOLD,
-      gain: 0.4
+      gain: 0.25
     } unless collected_gold.empty?
     @player.gold += collected_gold.count * state.gold_modifier
 
     collected_powerups = @powerup_manager.collect_intersecting(@player)
     audio[:pickup_powerup] = {
       input: Sounds::PICKUP_POWERUP,
-      gain: 0.4
+      gain: 0.35
     } unless collected_powerups.empty?
     collected_powerups.each do |powerup|
       @player.add_powerup(powerup_type: powerup.type)
     end
 
+    player_rock_collisions = @rock_manager.intersecting_rocks(@player)
     if @player.carried_by_eagle
-      @rock_manager.intersecting_rocks(@player).each { |rock| handle_rock_effect(rock) }
+      player_rock_collisions.each { |rock| handle_rock_effect(rock) }
+    elsif !player_rock_collisions.empty? && @player.can_be_hit_by_rock?
+      @player.hit_by_rock!
+      @rock_manager.break(player_rock_collisions.first)
+      audio[:rock_break] = {
+        input: Sounds::ROCK_BREAK,
+        gain: 0.85,
+      }
     end
 
     # everything below this handles hook collisions if the hitbox for it is active
@@ -675,7 +700,7 @@ class Game
       @player.start_grapple(hit_target)
 
       @camera.zoom_to(
-        target: 1.05,
+        target: 0.9,
         zoom_in_duration: @player.grapple_duration,
         zoom_out_duration: 20
         )
@@ -694,6 +719,7 @@ class Game
           @player.hook.widen!
         when :up_rock
           @rock_manager.only_spawn_up_rocks!
+          @rock_manager.convert_normal_and_down_to_up!
         when :gold_rush
           state.gold_modifier = 2.0
         when :eagle
@@ -739,9 +765,11 @@ class Game
       @player.jump!
       @camera.shake(strength: 30, duration: 120)
 
-      nearby_rocks = @rock_manager.within_radius(
-        target_rock: target_rock,
-        radius: BOMB_ROCK_EXPLOSION_RADIUS
+      visible = @camera.visible_world_rect
+      nearby_rocks = @rock_manager.within_vertical_range(
+        min_y: visible.y,
+        max_y: visible.y + visible.h + BOMB_ROCK_CLEARANCE_ABOVE_SCREEN,
+        excluding: target_rock
       )
 
       nearby_rocks.each { |rock| @rock_manager.break(rock) }
@@ -785,13 +813,15 @@ class Game
     state.paused_tick = Kernel.tick_count
     state.shop_open_tick = Kernel.tick_count
     state.shop_items.clear
+    state.shop_leave_button_hovered = false
+    state.shop_leave_button_clicked = false
     padding = 64
     item_option_width = 256
     start_x = (Grid.w / 2) - (item_option_width) - padding
     2.times.each do |i|
       powerup_type = Powerups::TYPES.sample
       new_item_option = Powerups.build(type: powerup_type)
-      state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(25..100), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
+      state.shop_items << shop_item(item_id: new_item_option.type, price: Numeric.rand(15..50), display_name: new_item_option.name, x: start_x + ((item_option_width + padding) * i), y: (Grid.h / 2) - (256 / 2))
     end
   end
 
@@ -855,19 +885,34 @@ class Game
   end
 
   def start_instructions_label
-    {
-      x: Grid.w / 2,
-      y: Grid.h / 2,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
-      size_px: 96,
-      font: Styles::FONT,
-      text: "Press A or D to Play",
-      r: 176,
-      g: 32,
-      b: 247,
-      a: start_instructions_alpha
-    }
+    [
+      {
+        x: Grid.w / 2,
+        y: (Grid.h / 2) + 32,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        size_px: 96,
+        font: Styles::FONT,
+        text: "Press A or D to Move",
+        r: 176,
+        g: 32,
+        b: 247,
+        a: start_instructions_alpha
+      },
+      {
+        x: Grid.w / 2,
+        y: (Grid.h / 2) - 32,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        size_px: 96,
+        font: Styles::FONT,
+        text: "Press SPACE to Grapple",
+        r: 176,
+        g: 32,
+        b: 247,
+        a: start_instructions_alpha
+      }
+    ]
   end
 
   def game_over_label(a: 255)

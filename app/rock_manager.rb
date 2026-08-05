@@ -3,32 +3,32 @@ class RockManager
   EASY_TO_MEDIUM_DIFFICULTY_DURATION = 35.seconds
   MEDIUM_TO_HARD_DIFFICULTY_DURATION = 70.seconds
 
-  EASY_MIN_ROCK_SPAWN_DELAY = 0.22.seconds
-  EASY_MAX_ROCK_SPAWN_DELAY = 0.42.seconds
+  EASY_MIN_ROCK_SPAWN_DELAY = 0.16.seconds
+  EASY_MAX_ROCK_SPAWN_DELAY = 0.26.seconds
   EASY_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 12
   EASY_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 16
   EASY_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 8
   EASY_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 12
-  EASY_MIN_ROCK_FALL_SPEED = 3.8
-  EASY_MAX_ROCK_FALL_SPEED = 5.3
+  EASY_MIN_ROCK_FALL_SPEED = 5.175
+  EASY_MAX_ROCK_FALL_SPEED = 6.9
 
-  MEDIUM_MIN_ROCK_SPAWN_DELAY = 0.18.seconds
-  MEDIUM_MAX_ROCK_SPAWN_DELAY = 0.34.seconds
+  MEDIUM_MIN_ROCK_SPAWN_DELAY = 0.13.seconds
+  MEDIUM_MAX_ROCK_SPAWN_DELAY = 0.24.seconds
   MEDIUM_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 7
   MEDIUM_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 10
   MEDIUM_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 7
   MEDIUM_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 10
-  MEDIUM_MIN_ROCK_FALL_SPEED = 4.6
-  MEDIUM_MAX_ROCK_FALL_SPEED = 6.2
+  MEDIUM_MIN_ROCK_FALL_SPEED = 5.52
+  MEDIUM_MAX_ROCK_FALL_SPEED = 7.935
 
-  HARD_MIN_ROCK_SPAWN_DELAY = 0.14.seconds
-  HARD_MAX_ROCK_SPAWN_DELAY = 0.26.seconds
+  HARD_MIN_ROCK_SPAWN_DELAY = 0.10.seconds
+  HARD_MAX_ROCK_SPAWN_DELAY = 0.18.seconds
   HARD_MIN_DOWN_ROCK_SPAWN_COUNTDOWN = 4
   HARD_MAX_DOWN_ROCK_SPAWN_COUNTDOWN = 7
   HARD_MIN_SPECIAL_ROCK_SPAWN_COUNTDOWN = 6
   HARD_MAX_SPECIAL_ROCK_SPAWN_COUNTDOWN = 9
-  HARD_MIN_ROCK_FALL_SPEED = 5.2
-  HARD_MAX_ROCK_FALL_SPEED = 7.2
+  HARD_MIN_ROCK_FALL_SPEED = 8.165
+  HARD_MAX_ROCK_FALL_SPEED = 9.775
 
   MIN_SHOP_ROCK_SPAWN_COUNTDOWN = 20
   MAX_SHOP_ROCK_SPAWN_COUNTDOWN = 40
@@ -39,7 +39,7 @@ class RockManager
   MIN_REPEAT_DISTANCE = 96
   ROCK_SIZE = 64
   VISUAL_GAP = 16
-  SPAWN_SAFETY_HEIGHT = 160
+  SPAWN_SAFETY_HEIGHT = 128
   SPAWN_CANDIDATE_COUNT = 10
   SPAWN_HISTORY_LIMIT = 5
 
@@ -50,6 +50,11 @@ class RockManager
 
   SPAWN_SAFETY_HEIGHT = 160
   HORIZONTAL_SAFETY_DISTANCE = 80
+  MIN_VERTICAL_SPAWN_GAP = 80
+  MAX_VERTICAL_SPAWN_GAP = 128
+  TWO_ROCK_LAYER_CHANCE = 0.40
+  MIN_BRANCH_HORIZONTAL_GAP = 224
+  MAX_BRANCH_HORIZONTAL_GAP = 480
 
   FLOW_RANDOMNESS = 8.0
   TOP_CANDIDATE_COUNT = 3
@@ -72,6 +77,7 @@ class RockManager
     @next_down_rock_spawn_countdown = Numeric.rand(@difficulty.min_down_rock_spawn_countdown..@difficulty.max_down_rock_spawn_countdown)
     @next_shop_rock_spawn_countdown = Numeric.rand(MIN_SHOP_ROCK_SPAWN_COUNTDOWN..MAX_SHOP_ROCK_SPAWN_COUNTDOWN)
     @only_spawn_up_rocks = false
+    @spawn_frontier_y = nil
     reset_spawn_variables
   end
 
@@ -104,6 +110,16 @@ class RockManager
     @only_spawn_up_rocks = false
   end
 
+  def convert_normal_and_down_to_up!
+    @rocks.each do |rock|
+      next unless collidable?(rock)
+      next unless [:basic, :down].include?(rock.type)
+
+      rock.type = :up
+      rock.path = "sprites/rocks/up_rock.png"
+    end
+  end
+
   def intersecting_rocks(rect)
     @rocks.select do |rock|
       collidable?(rock) && Geometry.intersect_rect?(rect, rock)
@@ -118,15 +134,36 @@ class RockManager
     end
   end
 
+  def within_vertical_range(min_y:, max_y:, excluding: nil)
+    @rocks.select do |rock|
+      rock != excluding &&
+        collidable?(rock) &&
+        rock.y + rock.h >= min_y &&
+        rock.y <= max_y
+    end
+  end
+
   def reset!
     @rocks.clear
+    @spawn_history.clear
+    @spawn_frontier_y = nil
+    reset_spawn_variables
   end
 
   private
 
   def reset_spawn_variables
-    @next_rock_spawn_y = @spawn_y.call
-
+    visible_spawn_y = @spawn_y.call
+    @spawn_frontier_y =
+      if @spawn_frontier_y
+        [
+          @spawn_frontier_y + Numeric.rand(MIN_VERTICAL_SPAWN_GAP..MAX_VERTICAL_SPAWN_GAP),
+          visible_spawn_y
+        ].max
+      else
+        visible_spawn_y
+      end
+    @next_rock_spawn_y = @spawn_frontier_y
 
     @next_rock_dy = Numeric.rand(@difficulty.min_rock_fall_speed..@difficulty.max_rock_fall_speed)
 
@@ -358,24 +395,82 @@ class RockManager
 
   def spawn_if_ready
     return unless @spawn_scheduler.ready?
+
+    refresh_spawn_position_if_stale
+    return unless vertical_spawn_clear?(@next_rock_spawn_y)
+
     selected_rock_type = select_type
-    reset_spawn_variables
-    new_rock = Rocks.build(
+    primary_rock = Rocks.build(
       type: selected_rock_type,
       spawn_x: @next_rock_spawn_x,
       spawn_y: @next_rock_spawn_y,
       fall_speed: @next_rock_dy
     )
-    @rocks << new_rock
+    new_rocks = [primary_rock]
 
-    @spawn_history << {
-      x: new_rock.x,
-      y: new_rock.y,
-      dy: new_rock.dy
-    }
+    if Numeric.rand(0.0..1.0) < TWO_ROCK_LAYER_CHANCE
+      companion_x = select_companion_spawn_x(primary_rock.x)
+      if companion_x
+        companion_type = @only_spawn_up_rocks ? :up : :basic
+        new_rocks << Rocks.build(
+          type: companion_type,
+          spawn_x: companion_x,
+          spawn_y: @next_rock_spawn_y,
+          fall_speed: @next_rock_dy
+        )
+      end
+    end
+
+    @rocks.concat(new_rocks)
+
+    # Keep the primary rock last so the established flow path remains the
+    # anchor for the next layer; companions are alternate choices off it.
+    new_rocks.reverse_each do |rock|
+      @spawn_history << {
+        x: rock.x,
+        y: rock.y,
+        dy: rock.dy
+      }
+    end
     @spawn_history.shift while @spawn_history.length > SPAWN_HISTORY_LIMIT
 
     @spawn_scheduler.reset!
+    reset_spawn_variables
+  end
+
+  def select_companion_spawn_x(primary_x)
+    previous_layer_x = @spawn_history.last ? @spawn_history.last.x : nil
+    candidates = SPAWN_CANDIDATE_COUNT.times.map { @spawn_x.call }
+
+    candidates.select! do |candidate_x|
+      branch_gap = (candidate_x - primary_x).abs
+      reachable_from_previous =
+        !previous_layer_x || (candidate_x - previous_layer_x).abs <= MAX_FLOW_STEP
+
+      branch_gap.between?(MIN_BRANCH_HORIZONTAL_GAP, MAX_BRANCH_HORIZONTAL_GAP) &&
+        reachable_from_previous &&
+        !unsafe_near_spawn?(candidate_x, @next_rock_spawn_y, @next_rock_dy)
+    end
+
+    candidates.sample
+  end
+
+  def refresh_spawn_position_if_stale
+    minimum_spawn_y = @spawn_y.call
+    return if @next_rock_spawn_y >= minimum_spawn_y
+
+    @spawn_frontier_y = minimum_spawn_y
+    @next_rock_spawn_y = minimum_spawn_y
+    @next_rock_spawn_x = select_next_spawn_x(
+      spawn_y: @next_rock_spawn_y,
+      fall_speed: @next_rock_dy
+    )
+  end
+
+  def vertical_spawn_clear?(spawn_y)
+    @rocks.none? do |rock|
+      collidable?(rock) && (spawn_y - rock.y).abs < MIN_VERTICAL_SPAWN_GAP
+    end
   end
 
   def move_rocks

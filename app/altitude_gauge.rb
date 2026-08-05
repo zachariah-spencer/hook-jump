@@ -1,6 +1,6 @@
 class AltitudeGauge
 
-  TICK_INTERVAL_METERS = 10.0
+  TICK_INTERVAL_METERS = 50.0
 
   def initialize(x:, y:, w:, h:, displayed_gap_meters:)
     @x = x

@@ -1,23 +1,24 @@
 * EXCEPTION:
-* ERROR: :clear! method missing on ~Array~.
+* ERROR:
+** method_missing: even?
+** instance:       0.0
+** on class:       Float
+** with modules:   [NumericDeprecated, ValueType, Comparable, PP::ObjectMixin, Kernel]
+** with values:    0.0
+** given args:     [[]]
+** exception:      can't define singleton
+** backtrace:
+app/player.rb:257:in rock_hit_blinking_red?
+app/player.rb:306:in primitives
+app/game.rb:318:in render_world
+app/game.rb:293:in render
+app/game.rb:120:in tick
+app/main.rb:29:in tick
 
-#+begin_src ~Array#inspect~
-[{:x=>851, :y=>364.1731519432175, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>162.2403029454454, :dang=>-0.4546333253510839, :dy=>4.356361376847691, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>653, :y=>457.4571597831923, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-211.6161256111724, :dang=>-0.001740467828172498, :dy=>4.277438814171791, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>322, :y=>574.4221638481156, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-49.93920201550671, :dang=>-0.08511530004560841, :dy=>4.10955392985846, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>536, :y=>481.0177468432406, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-77.03796050987134, :dang=>-0.363755362099911, :dy=>4.557048745785374, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>994, :y=>698.6104347904961, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-0.8664772940028022, :dang=>-0.2780754271610816, :dy=>3.972344439381092, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>850, :y=>504.3422760027652, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-49.881462513721, :dang=>-0.006816893165655591, :dy=>4.793580483705428, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>625, :y=>739.5001771055224, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :dy=>4.048133551530105, :type=>:bomb, :path=>"sprites/rocks/bomb_rock.png"}, {:x=>1177, :y=>778.296533006182, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>80.48101441605948, :dang=>0.6316091128232908, :dy=>3.977670646037674, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>277, :y=>777.3902474248094, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>116.6830087268913, :dang=>0.6623712171479992, :dy=>4.071966168449408, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>429, :y=>727.0657495954572, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :dy=>4.453832144783527, :type=>:down, :path=>"sprites/rocks/down_rock.png"}, {:x=>186, :y=>721.0929867252731, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-231.2035688162778, :dang=>-0.4021019209181196, :dy=>4.668112048305908, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>725, :y=>759.7340578498497, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-110.3481792833065, :dang=>0.3295046107679385, :dy=>4.6215530457874, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>1039, :y=>756.9657408543617, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>432.4020267630444, :dang=>0.8184173421045806, :dy=>4.833771528500855, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>67, :y=>915.5753253527395, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>251.2431812796835, :dang=>0.8558554255533626, :dy=>4.040244268383832, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>614, :y=>873.3162850442848, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>245.4261977498463, :dang=>-0.1841703300793121, :dy=>4.562923554341556, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>293, :y=>893.7808740452779, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :dy=>4.674907374595803, :type=>:gold, :path=>"sprites/rocks/gold_rock.png"}, {:x=>398, :y=>926.5470840155509, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>138.313923201923, :dang=>1.056531097892796, :dy=>4.742802297706869, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>1063, :y=>935.5801261245572, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-164.9931563892395, :dang=>-0.3379317801301209, :dy=>5.3421179419077, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>808, :y=>1038.60482767835, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-420.6371133246536, :dang=>-1.097191609045768, :dy=>4.202856419338689, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>675, :y=>1070.309906179827, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-325.3507559166636, :dang=>-1.008993741452925, :dy=>4.219502405645387, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>486, :y=>1086.129725484966, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>173.2913717760919, :dang=>-0.946192842662845, :dy=>4.63503227145985, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}, {:x=>245, :y=>1129.344808808724, :w=>64, :h=>64, :r=>255, :g=>255, :b=>255, :angle=>-195.5420020035333, :dang=>-0.3084004007066601, :dy=>4.1051382382552, :type=>:basic, :path=>"sprites/rocks/basic_rock.png"}]
-#+end_src ~Array#inspect~
-
-** Did you mean?
-Here's a list of methods that kind of look like :clear!.
-*** :clear
-
-The method named
-  :clear!
-doesn't exist on [Array, #<Class:#<Array:0x7abbbe87cfd0>>, Enumerable].
-
-(suggestions above)
 ** Backtrace:
-*** app/rock_manager.rb:122:in clear!
-*** app/game.rb:826:in calc_end_game
-*** app/game.rb:290:in calc_death_sequence
-*** app/game.rb:156:in calc
-*** app/game.rb:122:in tick
+*** app/player.rb:257:in rock_hit_blinking_red?
+*** app/player.rb:306:in primitives
+*** app/game.rb:318:in render_world
+*** app/game.rb:293:in render
+*** app/game.rb:120:in tick
 *** app/main.rb:29:in tick
